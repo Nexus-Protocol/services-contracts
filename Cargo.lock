@@ -454,6 +454,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "nexus-governance"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-bignumber",
+ "cosmwasm-schema",
+ "cosmwasm-std 0.14.0",
+ "cosmwasm-storage",
+ "cw-storage-plus",
+ "cw20",
+ "cw20-base",
+ "protobuf",
+ "schemars",
+ "serde",
+ "services",
+]
+
+[[package]]
 name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

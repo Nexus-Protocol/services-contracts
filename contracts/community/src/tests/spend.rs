@@ -1,13 +1,10 @@
-use std::ops::Add;
-
 use cosmwasm_std::testing::mock_dependencies;
 use cosmwasm_std::testing::{mock_env, mock_info};
 use cosmwasm_std::{to_binary, CosmosMsg, Uint128, WasmMsg};
+use cw20::Cw20ExecuteMsg;
 use services::community::{ExecuteMsg, GovernanceMsg, InstantiateMsg};
 
 use crate::error::ContractError;
-use crate::state::load_config;
-use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 
 #[test]
 fn test_spend() {
