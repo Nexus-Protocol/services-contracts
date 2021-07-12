@@ -51,7 +51,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Unbond { amount } => unbond(deps, env, info, amount),
-        ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
+        ExecuteMsg::Withdraw => withdraw(deps, env, info),
     }
 }
 
@@ -64,7 +64,7 @@ pub fn receive_cw20(
     let config: Config = read_config(deps.storage)?;
 
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::Bond {}) => {
+        Ok(Cw20HookMsg::Bond) => {
             // only staking token contract can execute this message
             if config.staking_token != deps.api.addr_canonicalize(info.sender.as_str())? {
                 return Err(StdError::generic_err("unauthorized"));
@@ -255,7 +255,7 @@ fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResu
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config => to_binary(&query_config(deps)?),
         QueryMsg::State { block_height } => to_binary(&query_state(deps, block_height)?),
         QueryMsg::StakerInfo {
             staker,

@@ -25,7 +25,7 @@ fn proper_initialization() {
     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // it worked, let's query the state
-    let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::Config).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!(
         config,
@@ -72,7 +72,7 @@ fn test_bond_tokens() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::Bond).unwrap(),
     });
 
     let info = mock_info("staking0000", &[]);
@@ -121,7 +121,7 @@ fn test_bond_tokens() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::Bond).unwrap(),
     });
     env.block.height += 10;
 
@@ -169,7 +169,7 @@ fn test_bond_tokens() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::Bond).unwrap(),
     });
 
     let info = mock_info("staking0001", &[]);
@@ -200,7 +200,7 @@ fn test_unbond() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::Bond).unwrap(),
     });
     let info = mock_info("staking0000", &[]);
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -260,7 +260,7 @@ fn test_compute_reward() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::Bond).unwrap(),
     });
     let info = mock_info("staking0000", &[]);
     let mut env = mock_env();
@@ -274,7 +274,7 @@ fn test_compute_reward() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::Bond).unwrap(),
     });
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
@@ -373,7 +373,7 @@ fn test_withdraw() {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: "addr0000".to_string(),
         amount: Uint128::from(100u128),
-        msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
+        msg: to_binary(&Cw20HookMsg::Bond).unwrap(),
     });
     let info = mock_info("staking0000", &[]);
     let mut env = mock_env();
@@ -384,7 +384,7 @@ fn test_withdraw() {
     env.block.height += 100;
     let info = mock_info("addr0000", &[]);
 
-    let msg = ExecuteMsg::Withdraw {};
+    let msg = ExecuteMsg::Withdraw;
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(
