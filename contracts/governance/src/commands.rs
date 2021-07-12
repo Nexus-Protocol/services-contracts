@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, to_binary, Addr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage, Uint128, WasmMsg,
+    StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 use services::governance::{PollExecuteMsg, PollStatus, VoteOption, VoterInfo};
 
@@ -13,7 +13,7 @@ use crate::{
     },
     utils,
 };
-use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
+use cw20::Cw20ExecuteMsg;
 
 pub fn update_config(
     deps: DepsMut,
@@ -95,9 +95,9 @@ pub fn stake_voting_tokens(
     store_bank(deps.storage, &sender, &token_manager)?;
 
     Ok(Response {
-        submessages: vec![],
         messages: vec![],
         data: None,
+        events: vec![],
         attributes: vec![
             attr("action", "staking"),
             attr("sender", sender),
@@ -175,7 +175,7 @@ pub fn create_poll(
     store_state(deps.storage, &state)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
         attributes: vec![
             attr("action", "create_poll"),
@@ -207,7 +207,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let mut rejected_reason = "";
     let mut passed = false;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<SubMsg> = vec![];
     let config = load_config(deps.storage)?;
     let mut state = load_state(deps.storage)?;
 
@@ -245,14 +245,14 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
 
         // Refunds deposit only when quorum is reached
         if !a_poll.deposit_amount.is_zero() {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.psi_token.to_string(),
-                send: vec![],
+                funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: a_poll.creator.to_string(),
                     amount: a_poll.deposit_amount,
                 })?,
-            }))
+            })))
         }
     }
 
@@ -270,7 +270,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages,
         attributes: vec![
             attr("action", "end_poll"),
@@ -300,23 +300,23 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
     a_poll.status = PollStatus::Executed;
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
+    let mut messages: Vec<SubMsg> = vec![];
     if let Some(all_msgs) = a_poll.execute_data {
         let mut msgs = all_msgs;
         msgs.sort();
         for msg in msgs {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+            messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: msg.contract.to_string(),
                 msg: msg.msg,
-                send: vec![],
-            }))
+                funds: vec![],
+            })))
         }
     } else {
         return Err(StdError::generic_err("The poll does not have execute_data"));
     }
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages,
         attributes: vec![attr("action", "execute_poll"), attr("poll_id", poll_id)],
         data: None,
@@ -349,7 +349,7 @@ pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response>
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
         attributes: vec![attr("action", "expire_poll"), attr("poll_id", poll_id)],
         data: None,
@@ -386,7 +386,7 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Respons
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
         attributes: vec![
             attr("action", "snapshot_poll"),
@@ -473,7 +473,7 @@ pub fn cast_vote(
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
     Ok(Response {
-        submessages: vec![],
+        events: vec![],
         messages: vec![],
         attributes: vec![
             attr("action", "cast_vote"),
@@ -530,15 +530,15 @@ pub fn withdraw_voting_tokens(
             store_state(deps.storage, &state)?;
 
             Ok(Response {
-                submessages: vec![],
-                messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
+                events: vec![],
+                messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: config.psi_token.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: user_address.to_string(),
-                        amount: Uint128(withdraw_amount),
+                        amount: Uint128::new(withdraw_amount),
                     })?,
-                    send: vec![],
-                })],
+                    funds: vec![],
+                }))],
                 data: None,
                 attributes: vec![
                     attr("action", "withdraw"),

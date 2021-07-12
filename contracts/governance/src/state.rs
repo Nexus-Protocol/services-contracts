@@ -1,17 +1,17 @@
-use cosmwasm_storage::{Bucket, ReadonlyBucket};
+use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Binary, Decimal, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, Item, Map};
 use services::common::OrderBy;
 use services::governance::{PollStatus, VoterInfo};
 use std::cmp::Ordering;
 
-const CONFIG: Item<Config> = Item::new("config");
-const STATE: Item<State> = Item::new("state");
-const POLL: Map<&[u8], Poll> = Map::new("poll");
-const BANK: Map<&Addr, TokenManager> = Map::new("bank");
+static KEY_CONFIG: &[u8] = b"config";
+static KEY_STATE: &[u8] = b"state";
+
+static PREFIX_POLL: &[u8] = b"poll";
+static PREFIX_BANK: &[u8] = b"bank";
 
 static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
 static PREFIX_POLL_VOTER: &[u8] = b"poll_voter";
@@ -97,52 +97,51 @@ impl PartialEq for ExecuteData {
 }
 
 pub fn load_config(storage: &dyn Storage) -> StdResult<Config> {
-    CONFIG.load(storage)
+    singleton_read(storage, KEY_CONFIG).load()
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
-    CONFIG.save(storage, config)
+    singleton(storage, KEY_CONFIG).save(config)
 }
 
 pub fn load_state(storage: &dyn Storage) -> StdResult<State> {
-    STATE.load(storage)
+    singleton_read(storage, KEY_STATE).load()
 }
 
 pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
-    STATE.save(storage, state)
+    singleton(storage, KEY_STATE).save(state)
 }
 
 pub fn load_poll(storage: &dyn Storage, poll_id: &u64) -> StdResult<Poll> {
-    POLL.load(storage, &poll_id.to_be_bytes())
+    bucket_read(storage, PREFIX_POLL).load(&poll_id.to_be_bytes())
 }
 
 pub fn load_poll_raw_key(storage: &dyn Storage, key: &[u8]) -> StdResult<Poll> {
-    POLL.load(storage, key)
+    bucket_read(storage, PREFIX_POLL).load(key)
 }
 
 pub fn may_load_poll(storage: &dyn Storage, poll_id: &u64) -> StdResult<Option<Poll>> {
-    POLL.may_load(storage, &poll_id.to_be_bytes())
+    bucket_read(storage, PREFIX_POLL).may_load(&poll_id.to_be_bytes())
 }
 
 pub fn store_poll(storage: &mut dyn Storage, poll_id: &u64, poll: &Poll) -> StdResult<()> {
-    POLL.save(storage, &poll_id.to_be_bytes(), poll)
+    bucket(storage, PREFIX_POLL).save(&poll_id.to_be_bytes(), poll)
 }
 
-pub fn load_bank(storage: &dyn Storage, key: &Addr) -> StdResult<TokenManager> {
-    BANK.may_load(storage, key)
-        .map(|res| res.unwrap_or_default())
+pub fn may_load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<Option<TokenManager>> {
+    bucket_read(storage, PREFIX_BANK).may_load(addr.as_bytes())
 }
 
-pub fn may_load_bank(storage: &dyn Storage, key: &Addr) -> StdResult<Option<TokenManager>> {
-    BANK.may_load(storage, key)
+pub fn load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<TokenManager> {
+    may_load_bank(storage, addr).map(|res| res.unwrap_or_default())
 }
 
 pub fn store_bank(
     storage: &mut dyn Storage,
-    key: &Addr,
+    addr: &Addr,
     token_manager: &TokenManager,
 ) -> StdResult<()> {
-    BANK.save(storage, key, token_manager)
+    bucket(storage, PREFIX_BANK).save(addr.as_bytes(), token_manager)
 }
 
 pub fn poll_indexer_store<'a>(
@@ -220,9 +219,10 @@ pub fn read_polls(
             })
             .collect()
     } else {
-        let start = start.map(Bound::exclusive);
-        let end = end.map(Bound::exclusive);
-        POLL.range(storage, start, end, order_by.into())
+        let polls: ReadonlyBucket<Poll> = ReadonlyBucket::new(storage, PREFIX_POLL);
+
+        polls
+            .range(start.as_deref(), end.as_deref(), order_by.into())
             .take(limit)
             .map(|item| {
                 let (_, v) = item?;

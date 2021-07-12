@@ -3,8 +3,9 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use anchor_token::airdrop::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, LatestStageResponse, MerkleRootResponse, QueryMsg,
+use services::airdrop::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
+    MerkleRootResponse, QueryMsg,
 };
 
 fn main() {
@@ -19,4 +20,5 @@ fn main() {
     export_schema(&schema_for!(LatestStageResponse), &out_dir);
     export_schema(&schema_for!(MerkleRootResponse), &out_dir);
     export_schema(&schema_for!(ConfigResponse), &out_dir);
+    export_schema(&schema_for!(IsClaimedResponse), &out_dir);
 }

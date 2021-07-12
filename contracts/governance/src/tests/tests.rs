@@ -9,7 +9,7 @@ use crate::querier::query_token_balance;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, Addr, CosmosMsg, Decimal, Env, OwnedDeps, Response,
-    StdError, Timestamp, Uint128, WasmMsg,
+    StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use services::common::OrderBy;
@@ -39,7 +39,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
-        proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
         psi_token_addr: VOTING_TOKEN.to_string(),
     };
@@ -59,7 +59,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             voting_period: DEFAULT_VOTING_PERIOD,
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
             expiration_period: DEFAULT_EXPIRATION_PERIOD,
-            proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+            proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             snapshot_period: DEFAULT_FIX_PERIOD,
         }
     );
@@ -113,7 +113,7 @@ fn fails_init_invalid_quorum() {
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
-        proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
         psi_token_addr: VOTING_TOKEN.to_string(),
     };
@@ -137,7 +137,7 @@ fn fails_init_invalid_threshold() {
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
-        proposal_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
         psi_token_addr: VOTING_TOKEN.to_string(),
     };
@@ -242,7 +242,7 @@ fn fails_create_poll_invalid_deposit() {
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_CREATOR.to_string(),
-        amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT - 1),
+        amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT - 1),
         msg: to_binary(&Cw20HookMsg::CreatePoll {
             title: "TESTTEST".to_string(),
             description: "TESTTEST".to_string(),
@@ -271,7 +271,7 @@ fn create_poll_msg<A: Into<String>>(
 ) -> ExecuteMsg {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_CREATOR.to_string(),
-        amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+        amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         msg: to_binary(&Cw20HookMsg::CreatePoll {
             title: title.into(),
             description: description.into(),
@@ -310,16 +310,19 @@ fn query_polls() {
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::new(123),
     })
     .unwrap();
 
     let exec_msg_bz2 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(12),
+        amount: Uint128::new(12),
     })
     .unwrap();
 
-    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn { amount: Uint128(1) }).unwrap();
+    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn {
+        amount: Uint128::new(1),
+    })
+    .unwrap();
 
     let mut execute_msgs: Vec<PollExecuteMsg> = vec![];
 
@@ -375,7 +378,7 @@ fn query_polls() {
                 title: "test".to_string(),
                 description: "test".to_string(),
                 link: Some("http://google.com".to_string()),
-                deposit_amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+                deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
                 execute_data: Some(execute_msgs.clone()),
                 yes_votes: Uint128::zero(),
                 no_votes: Uint128::zero(),
@@ -390,7 +393,7 @@ fn query_polls() {
                 title: "test2".to_string(),
                 description: "test2".to_string(),
                 link: None,
-                deposit_amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+                deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
                 execute_data: None,
                 yes_votes: Uint128::zero(),
                 no_votes: Uint128::zero(),
@@ -422,7 +425,7 @@ fn query_polls() {
             title: "test2".to_string(),
             description: "test2".to_string(),
             link: None,
-            deposit_amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+            deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             execute_data: None,
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
@@ -453,7 +456,7 @@ fn query_polls() {
             title: "test".to_string(),
             description: "test".to_string(),
             link: Some("http://google.com".to_string()),
-            deposit_amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+            deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             execute_data: Some(execute_msgs),
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
@@ -484,7 +487,7 @@ fn query_polls() {
             title: "test2".to_string(),
             description: "test2".to_string(),
             link: None,
-            deposit_amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+            deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             execute_data: None,
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
@@ -561,16 +564,19 @@ fn happy_days_end_poll() {
     let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::new(123),
     })
     .unwrap();
 
     let exec_msg_bz2 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(12),
+        amount: Uint128::new(12),
     })
     .unwrap();
 
-    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn { amount: Uint128(1) }).unwrap();
+    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn {
+        amount: Uint128::new(1),
+    })
+    .unwrap();
 
     //add three messages with different order
     let mut execute_msgs: Vec<PollExecuteMsg> = vec![];
@@ -615,7 +621,7 @@ fn happy_days_end_poll() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -701,15 +707,15 @@ fn happy_days_end_poll() {
     );
     assert_eq!(
         execute_res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_CREATOR.to_string(),
-                amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+                amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             })
             .unwrap(),
-            send: vec![],
-        })]
+            funds: vec![],
+        }))]
     );
 
     // End poll will withdraw deposit balance
@@ -717,7 +723,7 @@ fn happy_days_end_poll() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(stake_amount as u128),
+            &Uint128::new(stake_amount as u128),
         )],
     )]);
 
@@ -751,21 +757,21 @@ fn happy_days_end_poll() {
     assert_eq!(
         execute_res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz.clone(),
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz2,
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz3,
-                send: vec![],
-            })
+                funds: vec![],
+            }))
         ]
     );
     assert_eq!(
@@ -844,8 +850,8 @@ fn happy_days_end_poll() {
     assert_eq!(
         response,
         StakerResponse {
-            balance: Uint128(stake_amount),
-            share: Uint128(stake_amount),
+            balance: Uint128::new(stake_amount),
+            share: Uint128::new(stake_amount),
             locked_balance: vec![]
         }
     );
@@ -858,7 +864,7 @@ fn happy_days_end_poll() {
         voter,
         VoterInfo {
             vote: VoteOption::Yes,
-            balance: Uint128(stake_amount),
+            balance: Uint128::new(stake_amount),
         }
     );
 
@@ -873,7 +879,7 @@ fn happy_days_end_poll() {
             1u64,
             VoterInfo {
                 vote: VoteOption::Yes,
-                balance: Uint128(stake_amount),
+                balance: Uint128::new(stake_amount),
             }
         )]
     );
@@ -891,7 +897,7 @@ fn expire_poll() {
     let creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::new(123),
     })
     .unwrap();
     let mut execute_msgs: Vec<PollExecuteMsg> = vec![];
@@ -922,7 +928,7 @@ fn expire_poll() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -1004,15 +1010,15 @@ fn expire_poll() {
     );
     assert_eq!(
         execute_res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_CREATOR.to_string(),
-                amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+                amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             })
             .unwrap(),
-            send: vec![],
-        })]
+            funds: vec![],
+        }))]
     );
 
     // Expiration period has not been passed
@@ -1075,7 +1081,7 @@ fn end_poll_zero_quorum() {
         order: 1u64,
         contract: VOTING_TOKEN.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Burn {
-            amount: Uint128(123),
+            amount: Uint128::new(123),
         })
         .unwrap(),
     });
@@ -1101,7 +1107,7 @@ fn end_poll_zero_quorum() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -1214,7 +1220,7 @@ fn end_poll_quorum_rejected() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(100u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -1356,7 +1362,7 @@ fn end_poll_nay_rejected() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((voter1_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((voter1_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -1381,7 +1387,7 @@ fn end_poll_nay_rejected() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((voter1_stake + voter2_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((voter1_stake + voter2_stake + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -1453,7 +1459,7 @@ fn fails_cast_vote_not_enough_staked() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(10u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(10u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -1505,7 +1511,7 @@ fn happy_days_cast_vote() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -1539,7 +1545,7 @@ fn happy_days_cast_vote() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -1556,8 +1562,8 @@ fn happy_days_cast_vote() {
     assert_eq!(
         response,
         StakerResponse {
-            balance: Uint128(22u128),
-            share: Uint128(11u128),
+            balance: Uint128::new(22u128),
+            share: Uint128::new(11u128),
             locked_balance: vec![(
                 1u64,
                 VoterInfo {
@@ -1612,7 +1618,7 @@ fn happy_days_withdraw_voting_tokens() {
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(11u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(11u128))],
     )]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -1639,7 +1645,7 @@ fn happy_days_withdraw_voting_tokens() {
     // double the balance, only half will be withdrawn
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(22u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(22u128))],
     )]);
 
     let env = mock_env();
@@ -1655,15 +1661,15 @@ fn happy_days_withdraw_voting_tokens() {
 
     assert_eq!(
         msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
+        &SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_VOTER.to_string(),
                 amount: Uint128::from(11u128),
             })
             .unwrap(),
-            send: vec![],
-        })
+            funds: vec![],
+        }))
     );
 
     let state: State = load_state(&mut deps.storage).unwrap();
@@ -1684,7 +1690,7 @@ fn happy_days_withdraw_voting_tokens_all() {
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(11u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(11u128))],
     )]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -1711,7 +1717,7 @@ fn happy_days_withdraw_voting_tokens_all() {
     // double the balance, all balance withdrawn
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(22u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(22u128))],
     )]);
 
     let env = mock_env();
@@ -1725,15 +1731,15 @@ fn happy_days_withdraw_voting_tokens_all() {
 
     assert_eq!(
         msg,
-        &CosmosMsg::Wasm(WasmMsg::Execute {
+        &SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_VOTER.to_string(),
                 amount: Uint128::from(22u128),
             })
             .unwrap(),
-            send: vec![],
-        })
+            funds: vec![],
+        }))
     );
 
     let state: State = load_state(deps.as_ref().storage).unwrap();
@@ -1754,7 +1760,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(11u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(11u128))],
     )]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -1818,7 +1824,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             &voter_addr_raw,
             &VoterInfo {
                 vote: VoteOption::Yes,
-                balance: Uint128(5u128),
+                balance: Uint128::new(5u128),
             },
         )
         .unwrap();
@@ -1827,7 +1833,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             &voter_addr_raw,
             &VoterInfo {
                 vote: VoteOption::Yes,
-                balance: Uint128(5u128),
+                balance: Uint128::new(5u128),
             },
         )
         .unwrap();
@@ -1835,20 +1841,20 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
         deps.as_mut().storage,
         &voter_addr,
         &TokenManager {
-            share: Uint128(11u128),
+            share: Uint128::new(11u128),
             locked_balance: vec![
                 (
                     1u64,
                     VoterInfo {
                         vote: VoteOption::Yes,
-                        balance: Uint128(5u128),
+                        balance: Uint128::new(5u128),
                     },
                 ),
                 (
                     2u64,
                     VoterInfo {
                         vote: VoteOption::Yes,
-                        balance: Uint128(5u128),
+                        balance: Uint128::new(5u128),
                     },
                 ),
             ],
@@ -1873,7 +1879,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
         voter,
         VoterInfo {
             vote: VoteOption::Yes,
-            balance: Uint128(5u128),
+            balance: Uint128::new(5u128),
         }
     );
     assert_eq!(
@@ -1890,7 +1896,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             1u64,
             VoterInfo {
                 vote: VoteOption::Yes,
-                balance: Uint128(5u128),
+                balance: Uint128::new(5u128),
             }
         )]
     );
@@ -1925,7 +1931,7 @@ fn fails_withdraw_too_many_tokens() {
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(10u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(10u128))],
     )]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -1981,7 +1987,7 @@ fn fails_cast_vote_twice() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -2056,7 +2062,7 @@ fn happy_days_stake_voting_tokens() {
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(11u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(11u128))],
     )]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -2105,7 +2111,7 @@ fn fails_staking_wrong_token() {
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(11u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(11u128))],
     )]);
 
     // wrong token
@@ -2136,7 +2142,7 @@ fn share_calculation() {
     // create 100 share
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(100u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(100u128))],
     )]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -2152,7 +2158,10 @@ fn share_calculation() {
     // add more balance(100) to make share:balance = 1:2
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(200u128 + 100u128))],
+        &[(
+            &MOCK_CONTRACT_ADDR.to_string(),
+            &Uint128::new(200u128 + 100u128),
+        )],
     )]);
 
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -2176,7 +2185,7 @@ fn share_calculation() {
 
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::WithdrawVotingTokens {
-            amount: Some(Uint128(100u128)),
+            amount: Some(Uint128::new(100u128)),
         },
     };
     let env = mock_env();
@@ -2194,7 +2203,7 @@ fn share_calculation() {
     // 100 tokens withdrawn
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
-        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128(200u128))],
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(200u128))],
     )]);
 
     let res = query(
@@ -2206,8 +2215,8 @@ fn share_calculation() {
     )
     .unwrap();
     let stake_info: StakerResponse = from_binary(&res).unwrap();
-    assert_eq!(stake_info.share, Uint128(100));
-    assert_eq!(stake_info.balance, Uint128(200));
+    assert_eq!(stake_info.share, Uint128::new(100));
+    assert_eq!(stake_info.balance, Uint128::new(200));
     assert_eq!(stake_info.locked_balance, vec![]);
 }
 
@@ -2236,7 +2245,7 @@ fn assert_create_poll_result(
         State {
             poll_count: 1,
             total_share: Uint128::zero(),
-            total_deposit: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+            total_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         }
     );
 }
@@ -2259,8 +2268,8 @@ fn assert_stake_tokens_result(
         state,
         State {
             poll_count,
-            total_share: Uint128(total_share),
-            total_deposit: Uint128(total_deposit),
+            total_share: Uint128::new(total_share),
+            total_deposit: Uint128::new(total_deposit),
         }
     );
 }
@@ -2329,7 +2338,7 @@ fn update_config() {
             voting_period: Some(20000u64),
             timelock_period: Some(20000u64),
             expiration_period: Some(30000u64),
-            proposal_deposit: Some(Uint128(123u128)),
+            proposal_deposit: Some(Uint128::new(123u128)),
             snapshot_period: Some(11),
         },
     };
@@ -2380,16 +2389,19 @@ fn add_several_execute_msgs() {
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::new(123),
     })
     .unwrap();
 
     let exec_msg_bz2 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(12),
+        amount: Uint128::new(12),
     })
     .unwrap();
 
-    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn { amount: Uint128(1) }).unwrap();
+    let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn {
+        amount: Uint128::new(1),
+    })
+    .unwrap();
 
     // push two execute msgs to the list
     let mut execute_msgs: Vec<PollExecuteMsg> = vec![];
@@ -2443,25 +2455,25 @@ fn execute_poll_with_order() {
     let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(10),
+        amount: Uint128::new(10),
     })
     .unwrap();
 
     let exec_msg_bz2 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(20),
+        amount: Uint128::new(20),
     })
     .unwrap();
 
     let exec_msg_bz3 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(30),
+        amount: Uint128::new(30),
     })
     .unwrap();
     let exec_msg_bz4 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(40),
+        amount: Uint128::new(40),
     })
     .unwrap();
     let exec_msg_bz5 = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(50),
+        amount: Uint128::new(50),
     })
     .unwrap();
 
@@ -2520,7 +2532,7 @@ fn execute_poll_with_order() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -2588,15 +2600,15 @@ fn execute_poll_with_order() {
     );
     assert_eq!(
         execute_res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_CREATOR.to_string(),
-                amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+                amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             })
             .unwrap(),
-            send: vec![],
-        })]
+            funds: vec![],
+        }))]
     );
 
     // End poll will withdraw deposit balance
@@ -2604,7 +2616,7 @@ fn execute_poll_with_order() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(stake_amount as u128),
+            &Uint128::new(stake_amount as u128),
         )],
     )]);
 
@@ -2616,31 +2628,31 @@ fn execute_poll_with_order() {
     assert_eq!(
         execute_res.messages,
         vec![
-            CosmosMsg::Wasm(WasmMsg::Execute {
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz,
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz2,
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz3,
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz4,
-                send: vec![],
-            }),
-            CosmosMsg::Wasm(WasmMsg::Execute {
+                funds: vec![],
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
                 msg: exec_msg_bz5,
-                send: vec![],
-            }),
+                funds: vec![],
+            })),
         ]
     );
     assert_eq!(
@@ -2698,7 +2710,7 @@ fn snapshot_poll() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -2753,7 +2765,7 @@ fn happy_days_cast_vote_with_snapshot() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(11u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -2789,7 +2801,7 @@ fn happy_days_cast_vote_with_snapshot() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(22u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -2824,7 +2836,7 @@ fn happy_days_cast_vote_with_snapshot() {
 
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let value: PollResponse = from_binary(&res).unwrap();
-    assert_eq!(value.staked_amount, Some(Uint128(22)));
+    assert_eq!(value.staked_amount, Some(Uint128::new(22)));
 
     // snanpshot poll will not go through
     let snap_error = execute(
@@ -2846,7 +2858,7 @@ fn happy_days_cast_vote_with_snapshot() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(33u128 + DEFAULT_PROPOSAL_DEPOSIT),
+            &Uint128::new(33u128 + DEFAULT_PROPOSAL_DEPOSIT),
         )],
     )]);
 
@@ -2874,7 +2886,7 @@ fn happy_days_cast_vote_with_snapshot() {
 
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let value: PollResponse = from_binary(&res).unwrap();
-    assert_eq!(value.staked_amount, Some(Uint128(22)));
+    assert_eq!(value.staked_amount, Some(Uint128::new(22)));
 }
 
 #[test]
@@ -2890,7 +2902,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
     let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::new(123),
     })
     .unwrap();
 
@@ -2930,7 +2942,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -2983,7 +2995,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -3067,7 +3079,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
     let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
-        amount: Uint128(123),
+        amount: Uint128::new(123),
     })
     .unwrap();
 
@@ -3107,7 +3119,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new((stake_amount + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -3178,7 +3190,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         &VOTING_TOKEN.to_string(),
         &[(
             &MOCK_CONTRACT_ADDR.to_string(),
-            &Uint128(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
+            &Uint128::new(((10 * stake_amount) + DEFAULT_PROPOSAL_DEPOSIT) as u128),
         )],
     )]);
 
@@ -3241,15 +3253,15 @@ fn happy_days_end_poll_with_controlled_quorum() {
     );
     assert_eq!(
         execute_res.messages,
-        vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: VOTING_TOKEN.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: TEST_CREATOR.to_string(),
-                amount: Uint128(DEFAULT_PROPOSAL_DEPOSIT),
+                amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             })
             .unwrap(),
-            send: vec![],
-        })]
+            funds: vec![],
+        }))]
     );
 
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
@@ -3268,7 +3280,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         &Addr::unchecked(MOCK_CONTRACT_ADDR),
     )
     .unwrap()
-    .checked_sub(Uint128(DEFAULT_PROPOSAL_DEPOSIT))
+    .checked_sub(Uint128::new(DEFAULT_PROPOSAL_DEPOSIT))
     .unwrap();
 
     assert_eq!(actual_staked_weight.u128(), (10 * stake_amount))
