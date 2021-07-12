@@ -13,7 +13,7 @@ fn fail_to_change_config_if_sender_is_not_governance() {
     let msg = InstantiateMsg {
         governance_contract_addr: "addr0001".to_string(),
         psi_token_addr: "addr0002".to_string(),
-        spend_limit: Uint128(2000),
+        spend_limit: Uint128::new(2000),
     };
 
     let env = mock_env();
@@ -25,7 +25,7 @@ fn fail_to_change_config_if_sender_is_not_governance() {
     // ====================================
 
     let new_governance_contract_addr = Some("addr9998".to_string());
-    let new_spend_limit = Some(Uint128(2000));
+    let new_spend_limit = Some(Uint128::new(2000));
 
     let change_config_msg = ExecuteMsg::Governance {
         governance_msg: GovernanceMsg::UpdateConfig {
@@ -49,7 +49,7 @@ fn success_to_change_config_if_sender_governance() {
     let msg = InstantiateMsg {
         governance_contract_addr: old_governance_addr.clone(),
         psi_token_addr: "addr0002".to_string(),
-        spend_limit: Uint128(2000),
+        spend_limit: Uint128::new(2000),
     };
 
     let env = mock_env();
@@ -61,7 +61,7 @@ fn success_to_change_config_if_sender_governance() {
     // ====================================
 
     let new_governance_contract_addr = "addr9998".to_string();
-    let new_spend_limit = Uint128(2000);
+    let new_spend_limit = Uint128::new(2000);
 
     let change_config_msg = ExecuteMsg::Governance {
         governance_msg: GovernanceMsg::UpdateConfig {

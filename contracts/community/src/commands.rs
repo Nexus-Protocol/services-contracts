@@ -1,10 +1,12 @@
-use cosmwasm_std::{attr, to_binary, CosmosMsg, DepsMut, Response, StdError, Uint128, WasmMsg};
+use cosmwasm_std::{
+    attr, to_binary, CosmosMsg, DepsMut, Response, StdError, SubMsg, Uint128, WasmMsg,
+};
 
 use crate::{
     state::{store_config, Config},
     ContractResult,
 };
-use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
+use cw20::Cw20ExecuteMsg;
 
 pub fn update_config(
     deps: DepsMut,
@@ -38,20 +40,20 @@ pub fn spend(
     }
 
     Ok(Response {
-        submessages: vec![],
-        messages: vec![CosmosMsg::Wasm(WasmMsg::Execute {
+        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: config.psi_token.to_string(),
-            send: vec![],
+            funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: recipient.clone(),
                 amount,
             })?,
-        })],
+        }))],
         attributes: vec![
             attr("action", "spend"),
             attr("recipient", recipient),
             attr("amount", amount),
         ],
+        events: vec![],
         data: None,
     })
 }

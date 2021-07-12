@@ -1,6 +1,6 @@
 use cosmwasm_std::testing::mock_dependencies;
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::{to_binary, CosmosMsg, Uint128, WasmMsg};
+use cosmwasm_std::{to_binary, CosmosMsg, SubMsg, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
 use services::community::{ExecuteMsg, GovernanceMsg, InstantiateMsg};
 
@@ -10,7 +10,7 @@ use crate::error::ContractError;
 fn test_spend() {
     let mut deps = mock_dependencies(&[]);
     let governance_contract_addr = "addr0001".to_string();
-    let spend_limit = Uint128(2000);
+    let spend_limit = Uint128::new(2000);
     let psi_token_addr = "addr0002".to_string();
 
     let msg = InstantiateMsg {
@@ -73,15 +73,15 @@ fn test_spend() {
         let res = crate::contract::execute(deps.as_mut(), env, info, spend_msg).unwrap();
         assert_eq!(
             res.messages,
-            vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: psi_token_addr.clone(),
-                send: vec![],
+                funds: vec![],
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: recipient_addr.clone(),
                     amount: spend_limit,
                 })
                 .unwrap(),
-            })]
+            }))]
         );
     }
 }
