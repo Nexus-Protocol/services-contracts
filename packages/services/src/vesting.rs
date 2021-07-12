@@ -50,6 +50,9 @@ pub enum QueryMsg {
         limit: Option<u32>,
         order_by: Option<OrderBy>,
     },
+    Claimable {
+        address: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -68,4 +71,10 @@ pub struct VestingAccountResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VestingAccountsResponse {
     pub vesting_accounts: Vec<VestingAccountResponse>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClaimableAmountResponse {
+    pub address: String,
+    pub claimable_amount: Uint128,
 }

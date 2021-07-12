@@ -12,8 +12,8 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 use services::common::OrderBy;
 use services::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
-    VestingAccountsResponse, VestingInfo,
+    ClaimableAmountResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -192,7 +192,7 @@ fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint12
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
@@ -208,6 +208,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order_by,
         )?)?),
+        QueryMsg::Claimable { address } => {
+            Ok(to_binary(&query_claimable_amount(deps, env, address)?)?)
+        }
     }
 }
 
@@ -259,6 +262,22 @@ pub fn query_vesting_accounts(
     Ok(VestingAccountsResponse {
         vesting_accounts: vesting_account_responses?,
     })
+}
+
+pub fn query_claimable_amount(
+    deps: Deps,
+    env: Env,
+    address: String,
+) -> StdResult<ClaimableAmountResponse> {
+    let info = read_vesting_info(deps.storage, &deps.api.addr_canonicalize(&address)?)?;
+    let current_time = env.block.time.nanos() / 1_000_000_000;
+    let claimable_amount = compute_claim_amount(current_time, &info);
+    let resp = ClaimableAmountResponse {
+        address,
+        claimable_amount,
+    };
+
+    Ok(resp)
 }
 
 #[test]

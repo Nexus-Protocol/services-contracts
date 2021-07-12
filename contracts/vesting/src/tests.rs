@@ -1,8 +1,8 @@
 use crate::contract::{execute, instantiate, query};
 use services::common::OrderBy;
 use services::vesting::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount, VestingAccountResponse,
-    VestingAccountsResponse, VestingInfo,
+    ClaimableAmountResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo,
 };
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -303,6 +303,26 @@ fn claim() {
     );
 
     env.block.time = Timestamp::from_seconds(102);
+
+    let claimable_amount_response = from_binary::<ClaimableAmountResponse>(
+        &query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::Claimable {
+                address: "addr0000".to_string(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        claimable_amount_response,
+        ClaimableAmountResponse {
+            address: "addr0000".to_string(),
+            claimable_amount: Uint128::from(11u128),
+        }
+    );
+
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(
         res.attributes,
