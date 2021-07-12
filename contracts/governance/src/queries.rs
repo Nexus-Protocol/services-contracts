@@ -19,7 +19,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = load_config(deps.storage)?;
     Ok(ConfigResponse {
         owner: config.owner.to_string(),
-        anchor_token: config.psi_token.to_string(),
+        psi_token: config.psi_token.to_string(),
         quorum: config.quorum,
         threshold: config.threshold,
         voting_period: config.voting_period,
