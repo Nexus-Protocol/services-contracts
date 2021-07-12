@@ -149,7 +149,7 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> 
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: address.to_string(),
-                amount: claim_amount, // TODO: wtf
+                amount: claim_amount,
             })?,
         }))]
     };

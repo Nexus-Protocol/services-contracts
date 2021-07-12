@@ -295,7 +295,7 @@ fn claim() {
             contract_addr: "psi_token".to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: "addr0000".to_string(),
-                amount: Uint128::from(111u128), // TODO: wtf
+                amount: Uint128::from(111u128),
             })
             .unwrap(),
             funds: vec![],
@@ -319,7 +319,7 @@ fn claim() {
             contract_addr: "psi_token".to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: "addr0000".to_string(),
-                amount: Uint128::from(11u128), // TODO: wtf
+                amount: Uint128::from(11u128),
             })
             .unwrap(),
             funds: vec![],
