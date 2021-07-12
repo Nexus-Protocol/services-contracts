@@ -2,5 +2,5 @@
 wasm = "build --release --target wasm32-unknown-unknown"
 wasm-debug = "build --target wasm32-unknown-unknown"
 unit-test = "test --lib"
-unit-test-nocapture = "test --lib -- --nocapture"
+integration-test = "test --test integration"
 schema = "run --example schema"
