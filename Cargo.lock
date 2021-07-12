@@ -961,11 +961,9 @@ version = "0.1.0"
 dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-schema 0.14.0",
- "cosmwasm-std 0.14.0",
- "cosmwasm-storage 0.14.0",
- "cw-storage-plus",
- "cw20 0.6.1",
- "cw20-base",
+ "cosmwasm-std 0.15.0",
+ "cosmwasm-storage 0.15.0",
+ "cw20 0.7.0",
  "protobuf",
  "schemars",
  "serde",
@@ -1389,14 +1387,11 @@ dependencies = [
 name = "services"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-bignumber",
  "cosmwasm-schema 0.14.0",
  "cosmwasm-std 0.15.0",
- "cosmwasm-storage 0.14.0",
  "cw20 0.6.1",
  "schemars",
  "serde",
- "terra-cosmwasm",
 ]
 
 [[package]]
@@ -1493,17 +1488,6 @@ dependencies = [
  "redox_syscall",
  "remove_dir_all",
  "winapi",
-]
-
-[[package]]
-name = "terra-cosmwasm"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10b671bd693e49c7c47b4e0f441bddf922a89add3c8affa6740657dca5be4ca3"
-dependencies = [
- "cosmwasm-std 0.15.0",
- "schemars",
- "serde",
 ]
 
 [[package]]
