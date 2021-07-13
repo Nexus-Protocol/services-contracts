@@ -3,6 +3,12 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
+      "type": "string",
+      "enum": [
+        "claim"
+      ]
+    },
+    {
       "type": "object",
       "required": [
         "update_config"
@@ -11,12 +17,6 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "anchor_token": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "genesis_time": {
               "type": [
                 "integer",
@@ -26,6 +26,12 @@
               "minimum": 0.0
             },
             "owner": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "psi_token": {
               "type": [
                 "string",
                 "null"
@@ -55,18 +61,6 @@
               }
             }
           }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "claim"
-      ],
-      "properties": {
-        "claim": {
-          "type": "object"
         }
       },
       "additionalProperties": false

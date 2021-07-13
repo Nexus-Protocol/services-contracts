@@ -1,20 +1,22 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ConfigResponse",
+  "title": "StateResponse",
   "type": "object",
   "required": [
-    "governance_contract_addr",
-    "psi_token_addr",
-    "spend_limit"
+    "poll_count",
+    "total_deposit",
+    "total_share"
   ],
   "properties": {
-    "governance_contract_addr": {
-      "type": "string"
+    "poll_count": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
-    "psi_token_addr": {
-      "type": "string"
+    "total_deposit": {
+      "$ref": "#/definitions/Uint128"
     },
-    "spend_limit": {
+    "total_share": {
       "$ref": "#/definitions/Uint128"
     }
   },

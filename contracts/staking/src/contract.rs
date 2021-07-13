@@ -7,8 +7,8 @@ use cosmwasm_std::{
 };
 
 use services::staking::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    StakerInfoResponse, StateResponse,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakerInfoResponse,
+    StateResponse,
 };
 
 use crate::state::{
@@ -311,9 +311,4 @@ pub fn query_staker_info(
         bond_amount: staker_info.bond_amount,
         pending_reward: staker_info.pending_reward,
     })
-}
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
 }

@@ -1337,7 +1337,6 @@ dependencies = [
 name = "services"
 version = "0.1.0"
 dependencies = [
- "cosmwasm-schema 0.14.0",
  "cosmwasm-std 0.15.0",
  "cosmwasm-storage",
  "cw20",

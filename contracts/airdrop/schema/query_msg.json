@@ -3,16 +3,11 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "type": "object",
-      "required": [
-        "config"
-      ],
-      "properties": {
-        "config": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
+      "type": "string",
+      "enum": [
+        "config",
+        "latest_stage"
+      ]
     },
     {
       "type": "object",
@@ -32,18 +27,6 @@
               "minimum": 0.0
             }
           }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "latest_stage"
-      ],
-      "properties": {
-        "latest_stage": {
-          "type": "object"
         }
       },
       "additionalProperties": false

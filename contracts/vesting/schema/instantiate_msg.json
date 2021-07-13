@@ -3,20 +3,20 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "anchor_token",
     "genesis_time",
-    "owner"
+    "owner",
+    "psi_token"
   ],
   "properties": {
-    "anchor_token": {
-      "type": "string"
-    },
     "genesis_time": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
     },
     "owner": {
+      "type": "string"
+    },
+    "psi_token": {
       "type": "string"
     }
   }

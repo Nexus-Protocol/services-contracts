@@ -3,16 +3,10 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "type": "object",
-      "required": [
+      "type": "string",
+      "enum": [
         "config"
-      ],
-      "properties": {
-        "config": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
+      ]
     },
     {
       "type": "object",
@@ -66,6 +60,26 @@
                 "string",
                 "null"
               ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "claimable"
+      ],
+      "properties": {
+        "claimable": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string"
             }
           }
         }

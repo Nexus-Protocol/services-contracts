@@ -3,16 +3,10 @@
   "title": "Cw20HookMsg",
   "anyOf": [
     {
-      "description": "StakeVotingTokens a user can stake their mirror token to receive rewards or do vote on polls",
-      "type": "object",
-      "required": [
+      "type": "string",
+      "enum": [
         "stake_voting_tokens"
-      ],
-      "properties": {
-        "stake_voting_tokens": {
-          "type": "object"
-        }
-      }
+      ]
     },
     {
       "description": "CreatePoll need to receive deposit from a proposer",
@@ -37,7 +31,7 @@
                 "null"
               ],
               "items": {
-                "$ref": "#/definitions/ExecuteMsg"
+                "$ref": "#/definitions/PollExecuteMsg"
               }
             },
             "link": {
@@ -51,7 +45,8 @@
             }
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -59,7 +54,7 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
       "type": "string"
     },
-    "ExecuteMsg": {
+    "PollExecuteMsg": {
       "type": "object",
       "required": [
         "contract",
@@ -68,7 +63,7 @@
       ],
       "properties": {
         "contract": {
-          "$ref": "#/definitions/HumanAddr"
+          "type": "string"
         },
         "msg": {
           "$ref": "#/definitions/Binary"
@@ -79,9 +74,6 @@
           "minimum": 0.0
         }
       }
-    },
-    "HumanAddr": {
-      "type": "string"
     }
   }
 }

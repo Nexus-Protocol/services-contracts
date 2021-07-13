@@ -17,8 +17,8 @@ fn main() {
     export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(LatestStageResponse), &out_dir);
-    export_schema(&schema_for!(MerkleRootResponse), &out_dir);
     export_schema(&schema_for!(ConfigResponse), &out_dir);
+    export_schema(&schema_for!(MerkleRootResponse), &out_dir);
+    export_schema(&schema_for!(LatestStageResponse), &out_dir);
     export_schema(&schema_for!(IsClaimedResponse), &out_dir);
 }

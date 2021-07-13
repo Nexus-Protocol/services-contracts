@@ -3,16 +3,10 @@
   "title": "QueryMsg",
   "anyOf": [
     {
-      "type": "object",
-      "required": [
+      "type": "string",
+      "enum": [
         "config"
-      ],
-      "properties": {
-        "config": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
+      ]
     },
     {
       "type": "object",

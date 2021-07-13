@@ -1,20 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ConfigResponse",
+  "title": "ClaimableAmountResponse",
   "type": "object",
   "required": [
-    "governance_contract_addr",
-    "psi_token_addr",
-    "spend_limit"
+    "address",
+    "claimable_amount"
   ],
   "properties": {
-    "governance_contract_addr": {
+    "address": {
       "type": "string"
     },
-    "psi_token_addr": {
-      "type": "string"
-    },
-    "spend_limit": {
+    "claimable_amount": {
       "$ref": "#/definitions/Uint128"
     }
   },

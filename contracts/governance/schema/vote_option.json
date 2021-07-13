@@ -1,8 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "QueryMsg",
+  "title": "VoteOption",
   "type": "string",
   "enum": [
-    "config"
+    "yes",
+    "no"
   ]
 }
