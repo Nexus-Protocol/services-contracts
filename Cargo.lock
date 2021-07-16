@@ -423,7 +423,8 @@ dependencies = [
 [[package]]
 name = "cw0"
 version = "0.7.0"
-source = "git+https://github.com/CosmWasm/cosmwasm-plus?branch=main#2db7cd9bff474400286a277f6e4b83a55fddef82"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7ebb9db14a7e5f3e728e365153b94f6cbde66852acbf47c897a5d6e647737f9"
 dependencies = [
  "cosmwasm-std 0.15.0",
  "schemars",
@@ -434,7 +435,8 @@ dependencies = [
 [[package]]
 name = "cw20"
 version = "0.7.0"
-source = "git+https://github.com/CosmWasm/cosmwasm-plus?branch=main#2db7cd9bff474400286a277f6e4b83a55fddef82"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2499fb5a5446cf4c54c59639e15e3d6fb5994e160068e020ad9774d37f2776e8"
 dependencies = [
  "cosmwasm-std 0.15.0",
  "cw0",
@@ -867,7 +869,7 @@ checksum = "0debeb9fcf88823ea64d64e4a815ab1643f33127d995978e099942ce38f25238"
 
 [[package]]
 name = "nexus-airdrop"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema 0.15.0",
  "cosmwasm-std 0.15.0",
@@ -884,7 +886,7 @@ dependencies = [
 
 [[package]]
 name = "nexus-community"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-bignumber",
  "cosmwasm-schema 0.14.0",
@@ -900,7 +902,7 @@ dependencies = [
 
 [[package]]
 name = "nexus-governance"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema 0.15.0",
  "cosmwasm-std 0.15.0",
@@ -914,7 +916,7 @@ dependencies = [
 
 [[package]]
 name = "nexus-staking"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema 0.15.0",
  "cosmwasm-std 0.15.0",
@@ -927,7 +929,7 @@ dependencies = [
 
 [[package]]
 name = "nexus-vesting"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-schema 0.15.0",
  "cosmwasm-std 0.15.0",
@@ -1335,7 +1337,7 @@ dependencies = [
 
 [[package]]
 name = "services"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "cosmwasm-std 0.15.0",
  "cosmwasm-storage",

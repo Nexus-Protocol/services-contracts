@@ -1,13 +1,13 @@
 [package]
 name = "nexus-community"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Nexus Labs"]
 edition = "2018"
 description = "A Community contract for Nexus Protocol - Keeps premined PSI token which can be used through Gov proposal"
 license = "Apache-2.0"
-repository = "https://github.com/nexus/services-contracts"
-homepage = "https://nexus.io"
-documentation = "https://docs.nexus.io"
+repository = "https://github.com/Nexus-Protocol/services-contracts"
+homepage = "todo"
+documentation = "todo"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -25,15 +25,10 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-# TODO: use deps from crates.io
-# cw20 = { version = "0.7" }
-cw20 = { git = "https://github.com/CosmWasm/cosmwasm-plus", branch = "main" }
-services = { path = "../../packages/services", default-features = false, version = "0.1.0"}
+cw20 = { version = "0.7" }
+services = { path = "../../packages/services", default-features = false, version = "1.0.0"}
 cosmwasm-std = { version = "0.15" }
 cosmwasm-storage = { version = "0.15" }
-# TODO: use deps from crates.io
-# cw-storage-plus = { version = "0.7", features = ["iterator"] }
-# cw-storage-plus = { git = "https://github.com/CosmWasm/cosmwasm-plus", branch = "main" , features = ["iterator"]}
 schemars = "0.8.1"
 serde = { version = "1.0.126", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }

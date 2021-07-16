@@ -1,13 +1,13 @@
 [package]
 name = "nexus-staking"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Nexus Labs"]
 edition = "2018"
 description = "A Staking contract for Nexus Protocol - distribute rewards to stakers"
 license = "Apache-2.0"
-repository = "https://github.com/nexus/services-contracts"
-homepage = "https://nexus.io"
-documentation = "https://docs.nexus.io"
+repository = "https://github.com/Nexus-Protocol/services-contracts"
+homepage = "todo"
+documentation = "todo"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -26,10 +26,10 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = { git = "https://github.com/CosmWasm/cosmwasm-plus", branch = "main" }
+cw20 = { version = "0.7" }
 cosmwasm-std = { version = "0.15", features = ["iterator"] }
 cosmwasm-storage = { version = "0.15", features = ["iterator"] }
-services = { path = "../../packages/services", default-features = false, version = "0.1.0"}
+services = { path = "../../packages/services", default-features = false, version = "1.0.0"}
 schemars = "0.8.1"
 serde = { version = "1.0.126", default-features = false, features = ["derive"] }
 
