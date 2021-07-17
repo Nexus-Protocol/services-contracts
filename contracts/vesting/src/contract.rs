@@ -13,7 +13,7 @@ use cw20::Cw20ExecuteMsg;
 use services::common::OrderBy;
 use services::vesting::{
     ClaimableAmountResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount,
-    VestingAccountResponse, VestingAccountsResponse, VestingInfo,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -93,11 +93,17 @@ pub fn update_config(
     })
 }
 
-fn assert_vesting_schedules(vesting_schedules: &[(u64, u64, Uint128)]) -> StdResult<()> {
+fn assert_vesting_schedules(vesting_schedules: &[VestingSchedule]) -> StdResult<()> {
     for vesting_schedule in vesting_schedules.iter() {
-        if vesting_schedule.0 >= vesting_schedule.1 {
+        if vesting_schedule.start_time >= vesting_schedule.end_time {
             return Err(StdError::generic_err(
                 "end_time must bigger than start_time",
+            ));
+        }
+
+        if vesting_schedule.start_time > vesting_schedule.cliff_end_time {
+            return Err(StdError::generic_err(
+                "cliff_end_time must bigger or equal than start_time",
             ));
         }
     }
@@ -173,17 +179,25 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> 
 fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint128 {
     let mut claimable_amount: Uint128 = Uint128::zero();
     for s in vesting_info.schedules.iter() {
-        if s.0 > current_time || s.1 < vesting_info.last_claim_time {
+        if s.start_time > current_time
+            || s.end_time < vesting_info.last_claim_time
+            || s.cliff_end_time > current_time
+        {
             continue;
         }
 
-        // min(s.1, current_time) - max(s.0, last_claim_time)
-        let passed_time =
-            std::cmp::min(s.1, current_time) - std::cmp::max(s.0, vesting_info.last_claim_time);
+        // min(s.end_time, current_time) - max(s.start_time, last_claim_time)
+        let mut passed_time = std::cmp::min(s.end_time, current_time)
+            - std::cmp::max(s.start_time, vesting_info.last_claim_time);
+        if vesting_info.last_claim_time < s.cliff_end_time
+            && vesting_info.last_claim_time > s.start_time
+        {
+            passed_time += vesting_info.last_claim_time - s.start_time;
+        }
 
         // prevent zero time_period case
-        let time_period = s.1 - s.0;
-        let release_amount_per_time: Decimal = Decimal::from_ratio(s.2, time_period);
+        let time_period = s.end_time - s.start_time;
+        let release_amount_per_time: Decimal = Decimal::from_ratio(s.amount, time_period);
 
         claimable_amount += Uint128::from(passed_time as u128) * release_amount_per_time;
     }
@@ -284,21 +298,34 @@ pub fn query_claimable_amount(
 fn test_assert_vesting_schedules() {
     // valid
     assert_vesting_schedules(&[
-        (100u64, 101u64, Uint128::from(100u128)),
-        (100u64, 110u64, Uint128::from(100u128)),
-        (100u64, 200u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 101u64, 100u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 110u64, 101u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 200u64, 300u64, Uint128::from(100u128)),
     ])
     .unwrap();
 
-    // invalid
+    // invalid: start_time equals to end_time
     let res = assert_vesting_schedules(&[
-        (100u64, 100u64, Uint128::from(100u128)),
-        (100u64, 110u64, Uint128::from(100u128)),
-        (100u64, 200u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 100u64, 100u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 110u64, 100u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 200u64, 100u64, Uint128::from(100u128)),
     ]);
     match res {
         Err(StdError::GenericErr { msg, .. }) => {
             assert_eq!(msg, "end_time must bigger than start_time")
+        }
+        _ => panic!("DO NOT ENTER HERE"),
+    }
+
+    // invalid: cliff_end_time lesser than start_time
+    let res = assert_vesting_schedules(&[
+        VestingSchedule::new(100u64, 110u64, 100u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 150u64, 90u64, Uint128::from(100u128)),
+        VestingSchedule::new(100u64, 200u64, 100u64, Uint128::from(100u128)),
+    ]);
+    match res {
+        Err(StdError::GenericErr { msg, .. }) => {
+            assert_eq!(msg, "cliff_end_time must bigger or equal than start_time")
         }
         _ => panic!("DO NOT ENTER HERE"),
     }
