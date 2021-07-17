@@ -2,7 +2,7 @@ use crate::contract::{execute, instantiate, query};
 use services::common::OrderBy;
 use services::vesting::{
     ClaimableAmountResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount,
-    VestingAccountResponse, VestingAccountsResponse, VestingInfo,
+    VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -140,18 +140,28 @@ fn register_vesting_accounts() {
             VestingAccount {
                 address: acct1.clone(),
                 schedules: vec![
-                    (100u64, 101u64, Uint128::from(100u128)),
-                    (100u64, 110u64, Uint128::from(100u128)),
-                    (100u64, 200u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 101u64, 101u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 110u64, 101u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 200u64, 101u64, Uint128::from(100u128)),
                 ],
             },
             VestingAccount {
                 address: acct2.clone(),
-                schedules: vec![(100u64, 110u64, Uint128::from(100u128))],
+                schedules: vec![VestingSchedule::new(
+                    100u64,
+                    110u64,
+                    101u64,
+                    Uint128::from(100u128),
+                )],
             },
             VestingAccount {
                 address: acct3.clone(),
-                schedules: vec![(100u64, 200u64, Uint128::from(100u128))],
+                schedules: vec![VestingSchedule::new(
+                    100u64,
+                    200u64,
+                    101u64,
+                    Uint128::from(100u128),
+                )],
             },
         ],
     };
@@ -181,9 +191,9 @@ fn register_vesting_accounts() {
             info: VestingInfo {
                 last_claim_time: 100u64,
                 schedules: vec![
-                    (100u64, 101u64, Uint128::from(100u128)),
-                    (100u64, 110u64, Uint128::from(100u128)),
-                    (100u64, 200u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 101u64, 101u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 110u64, 101u64, Uint128::from(100u128)),
+                    VestingSchedule::new(100u64, 200u64, 101u64, Uint128::from(100u128)),
                 ],
             }
         }
@@ -210,9 +220,9 @@ fn register_vesting_accounts() {
                     info: VestingInfo {
                         last_claim_time: 100u64,
                         schedules: vec![
-                            (100u64, 101u64, Uint128::from(100u128)),
-                            (100u64, 110u64, Uint128::from(100u128)),
-                            (100u64, 200u64, Uint128::from(100u128)),
+                            VestingSchedule::new(100u64, 101u64, 101u64, Uint128::from(100u128)),
+                            VestingSchedule::new(100u64, 110u64, 101u64, Uint128::from(100u128)),
+                            VestingSchedule::new(100u64, 200u64, 101u64, Uint128::from(100u128)),
                         ],
                     }
                 },
@@ -220,14 +230,24 @@ fn register_vesting_accounts() {
                     address: acct2,
                     info: VestingInfo {
                         last_claim_time: 100u64,
-                        schedules: vec![(100u64, 110u64, Uint128::from(100u128))],
+                        schedules: vec![VestingSchedule::new(
+                            100u64,
+                            110u64,
+                            101u64,
+                            Uint128::from(100u128)
+                        )],
                     }
                 },
                 VestingAccountResponse {
                     address: acct3,
                     info: VestingInfo {
                         last_claim_time: 100u64,
-                        schedules: vec![(100u64, 200u64, Uint128::from(100u128))],
+                        schedules: vec![VestingSchedule::new(
+                            100u64,
+                            200u64,
+                            101u64,
+                            Uint128::from(100u128)
+                        )],
                     }
                 }
             ]
@@ -252,9 +272,9 @@ fn claim() {
         vesting_accounts: vec![VestingAccount {
             address: "addr0000".to_string(),
             schedules: vec![
-                (100u64, 101u64, Uint128::from(100u128)),
-                (100u64, 110u64, Uint128::from(100u128)),
-                (100u64, 200u64, Uint128::from(100u128)),
+                VestingSchedule::new(100u64, 101u64, 100u64, Uint128::from(100u128)),
+                VestingSchedule::new(100u64, 110u64, 100u64, Uint128::from(100u128)),
+                VestingSchedule::new(100u64, 200u64, 100u64, Uint128::from(100u128)),
             ],
         }],
     };
@@ -340,6 +360,141 @@ fn claim() {
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: "addr0000".to_string(),
                 amount: Uint128::from(11u128),
+            })
+            .unwrap(),
+            funds: vec![],
+        }))],
+    );
+}
+
+#[test]
+fn claim_with_cliff() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        psi_token: "psi_token".to_string(),
+        genesis_time: 100u64,
+    };
+
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: "addr0000".to_string(),
+            schedules: vec![
+                VestingSchedule::new(100u64, 200u64, 150u64, Uint128::from(100u128)),
+                VestingSchedule::new(100u64, 200u64, 125u64, Uint128::from(100u128)),
+            ],
+        }],
+    };
+    let info = mock_info("owner", &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let info = mock_info("addr0000", &[]);
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(124);
+
+    let msg = ExecuteMsg::Claim;
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "0"),
+            attr("last_claim_time", "124"),
+        ]
+    );
+    assert_eq!(res.messages, vec![]);
+
+    env.block.time = Timestamp::from_seconds(125);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "25"),
+            attr("last_claim_time", "125"),
+        ]
+    );
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "psi_token".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "addr0000".to_string(),
+                amount: Uint128::from(25u128),
+            })
+            .unwrap(),
+            funds: vec![],
+        }))],
+    );
+
+    env.block.time = Timestamp::from_seconds(150);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "75"),
+            attr("last_claim_time", "150"),
+        ]
+    );
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "psi_token".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "addr0000".to_string(),
+                amount: Uint128::from(75u128),
+            })
+            .unwrap(),
+            funds: vec![],
+        }))],
+    );
+
+    env.block.time = Timestamp::from_seconds(200);
+
+    let claimable_amount_response = from_binary::<ClaimableAmountResponse>(
+        &query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::Claimable {
+                address: "addr0000".to_string(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        claimable_amount_response,
+        ClaimableAmountResponse {
+            address: "addr0000".to_string(),
+            claimable_amount: Uint128::from(100u128),
+        }
+    );
+
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "100"),
+            attr("last_claim_time", "200"),
+        ]
+    );
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "psi_token".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "addr0000".to_string(),
+                amount: Uint128::from(100u128),
             })
             .unwrap(),
             funds: vec![],
