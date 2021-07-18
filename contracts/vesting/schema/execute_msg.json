@@ -85,25 +85,37 @@
         "schedules": {
           "type": "array",
           "items": {
-            "type": "array",
-            "items": [
-              {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
-              },
-              {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
-              },
-              {
-                "$ref": "#/definitions/Uint128"
-              }
-            ],
-            "maxItems": 3,
-            "minItems": 3
+            "$ref": "#/definitions/VestingSchedule"
           }
+        }
+      }
+    },
+    "VestingSchedule": {
+      "type": "object",
+      "required": [
+        "amount",
+        "cliff_end_time",
+        "end_time",
+        "start_time"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "cliff_end_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "end_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "start_time": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         }
       }
     }
