@@ -5,7 +5,6 @@
   "required": [
     "expiration_period",
     "proposal_deposit",
-    "psi_token_addr",
     "quorum",
     "snapshot_period",
     "threshold",
@@ -20,9 +19,6 @@
     },
     "proposal_deposit": {
       "$ref": "#/definitions/Uint128"
-    },
-    "psi_token_addr": {
-      "type": "string"
     },
     "quorum": {
       "$ref": "#/definitions/Decimal"

@@ -14,7 +14,6 @@ pub struct InstantiateMsg {
     pub expiration_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
-    pub psi_token_addr: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -27,6 +26,9 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AnyoneMsg {
+    RegisterToken {
+        psi_token: String,
+    },
     CastVote {
         poll_id: u64,
         vote: VoteOption,

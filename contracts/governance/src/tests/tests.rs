@@ -41,14 +41,38 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
-        psi_token_addr: VOTING_TOKEN.to_string(),
     };
 
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
-    instantiate(deps.as_mut(), env, info, msg).expect("contract successfully handles InitMsg");
+    instantiate(deps.as_mut(), env, info.clone(), msg)
+        .expect("contract successfully handles InitMsg");
     let config = load_config(deps.as_ref().storage).unwrap();
 
+    assert_eq!(
+        config,
+        Config {
+            owner: Addr::unchecked(TEST_CREATOR.to_string()),
+            psi_token: Addr::unchecked("".to_string()),
+            quorum: Decimal::percent(DEFAULT_QUORUM),
+            threshold: Decimal::percent(DEFAULT_THRESHOLD),
+            voting_period: DEFAULT_VOTING_PERIOD,
+            timelock_period: DEFAULT_TIMELOCK_PERIOD,
+            expiration_period: DEFAULT_EXPIRATION_PERIOD,
+            proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
+            snapshot_period: DEFAULT_FIX_PERIOD,
+        }
+    );
+
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::RegisterToken {
+            psi_token: VOTING_TOKEN.to_string(),
+        },
+    };
+    execute(deps.as_mut(), mock_env(), info.clone(), msg.clone())
+        .expect("contract successfully handles RegisterToken");
+
+    let config = load_config(deps.as_ref().storage).unwrap();
     assert_eq!(
         config,
         Config {
@@ -63,6 +87,20 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             snapshot_period: DEFAULT_FIX_PERIOD,
         }
     );
+
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::RegisterToken {
+            psi_token: VOTING_TOKEN.to_string(),
+        },
+    };
+
+    // can't change token_address
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
+    if let StdError::GenericErr { msg } = res.err().unwrap() {
+        assert_eq!("unauthorized", msg);
+    } else {
+        panic!("wrong error");
+    }
 }
 
 fn mock_env_height(height: u64, time: u64) -> Env {
@@ -115,7 +153,6 @@ fn fails_init_invalid_quorum() {
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
-        psi_token_addr: VOTING_TOKEN.to_string(),
     };
 
     let res = instantiate(deps.as_mut(), env, info, msg);
@@ -139,7 +176,6 @@ fn fails_init_invalid_threshold() {
         expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
-        psi_token_addr: VOTING_TOKEN.to_string(),
     };
 
     let res = instantiate(deps.as_mut(), env, info, msg);

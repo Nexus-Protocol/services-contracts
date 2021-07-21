@@ -32,7 +32,7 @@ pub fn instantiate(
     utils::validate_threshold(msg.threshold)?;
 
     let config = Config {
-        psi_token: deps.api.addr_validate(&msg.psi_token_addr)?,
+        psi_token: Addr::unchecked(""),
         owner: info.sender,
         quorum: msg.quorum,
         threshold: msg.threshold,
@@ -92,6 +92,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
 
         ExecuteMsg::Anyone { anyone_msg } => match anyone_msg {
+            AnyoneMsg::RegisterToken { psi_token } => commands::register_token(deps, psi_token),
             AnyoneMsg::WithdrawVotingTokens { amount } => {
                 commands::withdraw_voting_tokens(deps, env, info, amount)
             }

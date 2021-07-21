@@ -5,6 +5,26 @@
     {
       "type": "object",
       "required": [
+        "register_token"
+      ],
+      "properties": {
+        "register_token": {
+          "type": "object",
+          "required": [
+            "psi_token"
+          ],
+          "properties": {
+            "psi_token": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "cast_vote"
       ],
       "properties": {

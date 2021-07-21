@@ -486,6 +486,18 @@ pub fn cast_vote(
     })
 }
 
+pub fn register_token(deps: DepsMut, psi_token: String) -> StdResult<Response> {
+    let mut config: Config = load_config(deps.storage)?;
+    if config.psi_token != "" {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    config.psi_token = deps.api.addr_validate(&psi_token)?;
+    store_config(deps.storage, &config)?;
+
+    Ok(Response::default())
+}
+
 // Withdraw amount if not staked. By default all funds will be withdrawn.
 pub fn withdraw_voting_tokens(
     deps: DepsMut,
