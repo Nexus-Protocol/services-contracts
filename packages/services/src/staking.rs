@@ -19,19 +19,19 @@ pub enum ExecuteMsg {
         amount: Uint128,
     },
     /// Withdraw pending rewards
-    Withdraw,
+    Withdraw {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    Bond,
+    Bond {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Config,
+    Config {},
     State {
         block_height: Option<u64>,
     },

@@ -22,7 +22,7 @@ pub enum ExecuteMsg {
     RegisterVestingAccounts {
         vesting_accounts: Vec<VestingAccount>,
     },
-    Claim,
+    Claim {},
 }
 
 /// CONTRACT: end_time > start_time
@@ -60,7 +60,7 @@ impl VestingSchedule {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Config,
+    Config {},
     VestingAccount {
         address: String,
     },

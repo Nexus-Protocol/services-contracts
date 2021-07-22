@@ -3,12 +3,6 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
-      "type": "string",
-      "enum": [
-        "withdraw"
-      ]
-    },
-    {
       "type": "object",
       "required": [
         "receive"
@@ -36,6 +30,19 @@
               "$ref": "#/definitions/Uint128"
             }
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Withdraw pending rewards",
+      "type": "object",
+      "required": [
+        "withdraw"
+      ],
+      "properties": {
+        "withdraw": {
+          "type": "object"
         }
       },
       "additionalProperties": false

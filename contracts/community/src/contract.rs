@@ -61,6 +61,6 @@ pub fn execute(
 #[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config => to_binary(&queries::query_config(deps)?),
+        QueryMsg::Config {} => to_binary(&queries::query_config(deps)?),
     }
 }
