@@ -38,7 +38,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg.clone() {
-        ExecuteMsg::Claim => claim(deps, env, info),
+        ExecuteMsg::Claim {} => claim(deps, env, info),
         _ => {
             assert_owner_privilege(deps.storage, deps.api, info.sender)?;
             match msg {
@@ -208,7 +208,7 @@ fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint12
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config => Ok(to_binary(&query_config(deps)?)?),
+        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
             Ok(to_binary(&query_vesting_account(deps, address)?)?)
         }

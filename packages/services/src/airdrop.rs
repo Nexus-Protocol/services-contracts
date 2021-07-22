@@ -28,9 +28,9 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Config,
+    Config {},
     MerkleRoot { stage: u8 },
-    LatestStage,
+    LatestStage {},
     IsClaimed { stage: u8, address: String },
 }
 

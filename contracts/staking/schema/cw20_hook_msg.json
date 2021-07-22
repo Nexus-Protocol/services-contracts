@@ -1,8 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Cw20HookMsg",
-  "type": "string",
-  "enum": [
-    "bond"
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "bond"
+      ],
+      "properties": {
+        "bond": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
   ]
 }

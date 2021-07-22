@@ -26,8 +26,10 @@ fn proper_initialization() {
     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     assert_eq!(
-        from_binary::<ConfigResponse>(&query(deps.as_ref(), mock_env(), QueryMsg::Config).unwrap())
-            .unwrap(),
+        from_binary::<ConfigResponse>(
+            &query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()
+        )
+        .unwrap(),
         ConfigResponse {
             owner: "owner".to_string(),
             psi_token: "psi_token".to_string(),
@@ -58,8 +60,10 @@ fn update_config() {
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     assert_eq!(
-        from_binary::<ConfigResponse>(&query(deps.as_ref(), mock_env(), QueryMsg::Config).unwrap())
-            .unwrap(),
+        from_binary::<ConfigResponse>(
+            &query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()
+        )
+        .unwrap(),
         ConfigResponse {
             owner: "owner2".to_string(),
             psi_token: "psi_token".to_string(),
@@ -88,8 +92,10 @@ fn update_config() {
     let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     assert_eq!(
-        from_binary::<ConfigResponse>(&query(deps.as_ref(), mock_env(), QueryMsg::Config).unwrap())
-            .unwrap(),
+        from_binary::<ConfigResponse>(
+            &query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()
+        )
+        .unwrap(),
         ConfigResponse {
             owner: "owner2".to_string(),
             psi_token: "psi_token2".to_string(),
@@ -285,7 +291,7 @@ fn claim() {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(100);
 
-    let msg = ExecuteMsg::Claim;
+    let msg = ExecuteMsg::Claim {};
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
         res.attributes,
@@ -396,7 +402,7 @@ fn claim_with_cliff() {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(124);
 
-    let msg = ExecuteMsg::Claim;
+    let msg = ExecuteMsg::Claim {};
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_eq!(
         res.attributes,

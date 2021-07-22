@@ -206,9 +206,9 @@ fn bytes_cmp(a: [u8; 32], b: [u8; 32]) -> std::cmp::Ordering {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::MerkleRoot { stage } => to_binary(&query_merkle_root(deps, stage)?),
-        QueryMsg::LatestStage => to_binary(&query_latest_stage(deps)?),
+        QueryMsg::LatestStage {} => to_binary(&query_latest_stage(deps)?),
         QueryMsg::IsClaimed { stage, address } => {
             to_binary(&query_is_claimed(deps, stage, address)?)
         }

@@ -3,12 +3,6 @@
   "title": "ExecuteMsg",
   "anyOf": [
     {
-      "type": "string",
-      "enum": [
-        "claim"
-      ]
-    },
-    {
       "type": "object",
       "required": [
         "update_config"
@@ -61,6 +55,18 @@
               }
             }
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "claim"
+      ],
+      "properties": {
+        "claim": {
+          "type": "object"
         }
       },
       "additionalProperties": false
