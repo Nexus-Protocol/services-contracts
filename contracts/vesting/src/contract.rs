@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::state::{
@@ -85,12 +85,7 @@ pub fn update_config(
 
     store_config(deps.storage, &config)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_config")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "update_config"))
 }
 
 fn assert_vesting_schedules(vesting_schedules: &[VestingSchedule]) -> StdResult<()> {
@@ -130,12 +125,7 @@ pub fn register_vesting_accounts(
         )?;
     }
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "register_vesting_accounts")],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_attribute("action", "register_vesting_accounts"))
 }
 
 pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
@@ -163,17 +153,14 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> 
     vesting_info.last_claim_time = current_time;
     store_vesting_info(deps.storage, &address_raw, &vesting_info)?;
 
-    Ok(Response {
-        messages,
-        attributes: vec![
-            attr("action", "claim"),
-            attr("address", address),
-            attr("claim_amount", claim_amount),
-            attr("last_claim_time", current_time),
-        ],
-        events: vec![],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
+            ("action", "claim"),
+            ("address", &address.to_string()),
+            ("claim_amount", &claim_amount.to_string()),
+            ("last_claim_time", &current_time.to_string()),
+        ]))
 }
 
 fn compute_claim_amount(current_time: u64, vesting_info: &VestingInfo) -> Uint128 {

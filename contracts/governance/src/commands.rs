@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_binary, Addr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Storage, SubMsg, Uint128, WasmMsg,
 };
 use services::governance::{PollExecuteMsg, PollStatus, VoteOption, VoterInfo};
 
@@ -94,17 +94,12 @@ pub fn stake_voting_tokens(
     store_state(deps.storage, &state)?;
     store_bank(deps.storage, &sender, &token_manager)?;
 
-    Ok(Response {
-        messages: vec![],
-        data: None,
-        events: vec![],
-        attributes: vec![
-            attr("action", "staking"),
-            attr("sender", sender),
-            attr("share", share),
-            attr("amount", amount),
-        ],
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "staking"),
+        ("sender", &sender.to_string()),
+        ("share", &share.to_string()),
+        ("amount", &amount.to_string()),
+    ]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -174,17 +169,12 @@ pub fn create_poll(
 
     store_state(deps.storage, &state)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "create_poll"),
-            attr("creator", new_poll.creator),
-            attr("poll_id", poll_id),
-            attr("end_height", new_poll.end_height),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "create_poll"),
+        ("creator", &new_poll.creator.to_string()),
+        ("poll_id", &poll_id.to_string()),
+        ("end_height", &new_poll.end_height.to_string()),
+    ]))
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
@@ -269,17 +259,14 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     a_poll.total_balance_at_end_poll = Some(staked_weight);
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![
-            attr("action", "end_poll"),
-            attr("poll_id", poll_id),
-            attr("rejected_reason", rejected_reason),
-            attr("passed", passed),
-        ],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
+            ("action", "end_poll"),
+            ("poll_id", &poll_id.to_string()),
+            ("rejected_reason", &rejected_reason.to_string()),
+            ("passed", &passed.to_string()),
+        ]))
 }
 
 pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
@@ -315,12 +302,12 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
         return Err(StdError::generic_err("The poll does not have execute_data"));
     }
 
-    Ok(Response {
-        events: vec![],
-        messages,
-        attributes: vec![attr("action", "execute_poll"), attr("poll_id", poll_id)],
-        data: None,
-    })
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(vec![
+            ("action", "execute_poll"),
+            ("poll_id", &poll_id.to_string()),
+        ]))
 }
 
 /// ExpirePoll is used to make the poll as expired state for querying purpose
@@ -348,12 +335,10 @@ pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response>
     a_poll.status = PollStatus::Expired;
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![attr("action", "expire_poll"), attr("poll_id", poll_id)],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "expire_poll"),
+        ("poll_id", &poll_id.to_string()),
+    ]))
 }
 
 /// SnapshotPoll is used to take a snapshot of the staked amount for quorum calculation
@@ -385,16 +370,11 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Respons
 
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "snapshot_poll"),
-            attr("poll_id", poll_id),
-            attr("staked_amount", staked_amount),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "snapshot_poll"),
+        ("poll_id", &poll_id.to_string()),
+        ("staked_amount", &staked_amount.to_string()),
+    ]))
 }
 
 pub fn cast_vote(
@@ -459,9 +439,7 @@ pub fn cast_vote(
     store_bank(deps.storage, &info.sender, &token_manager)?;
 
     // store poll voter && and update poll data
-    //TODO: update cw-storage-plus to "0.7.0" and change this 'info.sender.as_bytes()'
-    poll_voter_store(deps.storage, poll_id)
-        .save(&info.sender.to_string().as_bytes(), &vote_info)?;
+    poll_voter_store(deps.storage, poll_id).save(&info.sender.as_bytes(), &vote_info)?;
 
     // processing snapshot
     let time_to_end = a_poll.end_height - env.block.height;
@@ -472,18 +450,13 @@ pub fn cast_vote(
 
     store_poll(deps.storage, &poll_id, &a_poll)?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        attributes: vec![
-            attr("action", "cast_vote"),
-            attr("poll_id", poll_id),
-            attr("amount", amount),
-            attr("voter", info.sender),
-            attr("vote_option", vote_info.vote),
-        ],
-        data: None,
-    })
+    Ok(Response::new().add_attributes(vec![
+        ("action", "cast_vote"),
+        ("poll_id", &poll_id.to_string()),
+        ("amount", &amount.to_string()),
+        ("voter", &info.sender.to_string()),
+        ("vote_option", &vote_info.vote.to_string()),
+    ]))
 }
 
 pub fn register_token(deps: DepsMut, psi_token: String) -> StdResult<Response> {
@@ -541,23 +514,20 @@ pub fn withdraw_voting_tokens(
             state.total_share = Uint128::from(total_share - withdraw_share);
             store_state(deps.storage, &state)?;
 
-            Ok(Response {
-                events: vec![],
-                messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            Ok(Response::new()
+                .add_message(WasmMsg::Execute {
                     contract_addr: config.psi_token.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: user_address.to_string(),
                         amount: Uint128::new(withdraw_amount),
                     })?,
                     funds: vec![],
-                }))],
-                data: None,
-                attributes: vec![
-                    attr("action", "withdraw"),
-                    attr("recipient", user_address),
-                    attr("amount", withdraw_amount),
-                ],
-            })
+                })
+                .add_attributes(vec![
+                    ("action", "withdraw"),
+                    ("recipient", &user_address.to_string()),
+                    ("amount", &withdraw_amount.to_string()),
+                ]))
         }
     } else {
         Err(StdError::generic_err("Nothing staked"))

@@ -1,6 +1,4 @@
-use cosmwasm_std::{
-    attr, to_binary, CosmosMsg, DepsMut, Response, StdError, SubMsg, Uint128, WasmMsg,
-};
+use cosmwasm_std::{to_binary, DepsMut, Response, StdError, Uint128, WasmMsg};
 
 use crate::{
     state::{store_config, Config},
@@ -39,21 +37,18 @@ pub fn spend(
         return Err(StdError::generic_err("Cannot spend more than spend_limit").into());
     }
 
-    Ok(Response {
-        messages: vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+    Ok(Response::new()
+        .add_message(WasmMsg::Execute {
             contract_addr: config.psi_token.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: recipient.clone(),
                 amount,
             })?,
-        }))],
-        attributes: vec![
-            attr("action", "spend"),
-            attr("recipient", recipient),
-            attr("amount", amount),
-        ],
-        events: vec![],
-        data: None,
-    })
+        })
+        .add_attributes(vec![
+            ("action", "spend"),
+            ("recipient", &recipient.to_string()),
+            ("amount", &amount.to_string()),
+        ]))
 }
