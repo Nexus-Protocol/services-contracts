@@ -26,12 +26,12 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = { version = "0.7" }
-cosmwasm-std = { version = "0.15", features = ["iterator"] }
-cosmwasm-storage = { version = "0.15", features = ["iterator"] }
+cw20 = { version = "0.8" }
+cosmwasm-std = { version = "0.16", features = ["iterator"] }
+cosmwasm-storage = { version = "0.16", features = ["iterator"] }
 services = { path = "../../packages/services", default-features = false, version = "1.0.0"}
 schemars = "0.8.1"
 serde = { version = "1.0.126", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-cosmwasm-schema = "0.15.0"
+cosmwasm-schema = "0.16"

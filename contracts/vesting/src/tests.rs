@@ -7,8 +7,7 @@ use services::vesting::{
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Api, CanonicalAddr, CosmosMsg, StdError, SubMsg, Timestamp,
-    Uint128, WasmMsg,
+    attr, from_binary, to_binary, CosmosMsg, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -117,29 +116,9 @@ fn register_vesting_accounts() {
     let info = mock_info("addr0000", &[]);
     let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
-    let acct1 = deps
-        .api
-        .addr_humanize(&CanonicalAddr::from(vec![
-            1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]))
-        .unwrap()
-        .to_string();
-
-    let acct2 = deps
-        .api
-        .addr_humanize(&CanonicalAddr::from(vec![
-            1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]))
-        .unwrap()
-        .to_string();
-
-    let acct3 = deps
-        .api
-        .addr_humanize(&CanonicalAddr::from(vec![
-            1, 1, 1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ]))
-        .unwrap()
-        .to_string();
+    let acct1 = "addr0001".to_string();
+    let acct2 = "addr0002".to_string();
+    let acct3 = "addr0003".to_string();
 
     let msg = ExecuteMsg::RegisterVestingAccounts {
         vesting_accounts: vec![
