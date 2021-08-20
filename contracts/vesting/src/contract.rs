@@ -39,19 +39,17 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg.clone() {
         ExecuteMsg::Claim {} => claim(deps, env, info),
-        _ => {
+        ExecuteMsg::UpdateConfig {
+            owner,
+            psi_token,
+            genesis_time,
+        } => {
             assert_owner_privilege(deps.storage, deps.api, info.sender)?;
-            match msg {
-                ExecuteMsg::UpdateConfig {
-                    owner,
-                    psi_token,
-                    genesis_time,
-                } => update_config(deps, owner, psi_token, genesis_time),
-                ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
-                    register_vesting_accounts(deps, vesting_accounts)
-                }
-                _ => panic!("DO NOT ENTER HERE"),
-            }
+            update_config(deps, owner, psi_token, genesis_time)
+        }
+        ExecuteMsg::RegisterVestingAccounts { vesting_accounts } => {
+            assert_owner_privilege(deps.storage, deps.api, info.sender)?;
+            register_vesting_accounts(deps, vesting_accounts)
         }
     }
 }

@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use services::staking::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakerInfoResponse,
-    StateResponse,
+    StakingSchedule, StateResponse,
 };
 
 #[test]
@@ -14,9 +14,10 @@ fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
+        owner: "owner0000".to_string(),
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
-        distribution_schedule: vec![(100, 200, Uint128::from(1000000u128))],
+        distribution_schedule: vec![StakingSchedule::new(100, 200, Uint128::from(1000000u128))],
     };
 
     let info = mock_info("addr0000", &[]);
@@ -30,9 +31,10 @@ fn proper_initialization() {
     assert_eq!(
         config,
         ConfigResponse {
+            owner: "owner0000".to_string(),
             psi_token: "reward0000".to_string(),
             staking_token: "staking0000".to_string(),
-            distribution_schedule: vec![(100, 200, Uint128::from(1000000u128))],
+            distribution_schedule: vec![StakingSchedule::new(100, 200, Uint128::from(1000000u128))],
         }
     );
 
@@ -58,11 +60,12 @@ fn test_bond_tokens() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
+        owner: "owner0000".to_string(),
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1000000u128)),
+            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
         ],
     };
 
@@ -185,11 +188,12 @@ fn test_unbond() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
+        owner: "owner0000".to_string(),
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1000000u128)),
+            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
         ],
     };
 
@@ -243,13 +247,15 @@ fn test_unbond() {
 #[test]
 fn test_compute_reward() {
     let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000".to_string();
 
     let msg = InstantiateMsg {
+        owner: owner.clone(),
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1_000_000u128)),
+            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10_000_000u128)),
         ],
     };
 
@@ -299,7 +305,7 @@ fn test_compute_reward() {
         }
     );
 
-    // 100 blocks passed
+    // 10 blocks passed
     // 1,000,000 rewards distributed
     env.block.height += 10;
     let info = mock_info("addr0000", &[]);
@@ -308,7 +314,7 @@ fn test_compute_reward() {
     let msg = ExecuteMsg::Unbond {
         amount: Uint128::from(100u128),
     };
-    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_eq!(
         from_binary::<StakerInfoResponse>(
             &query(
@@ -338,7 +344,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: Some(12345 + 120),
+                    block_height: Some(env.block.height + 10),
                 },
             )
             .unwrap()
@@ -351,6 +357,129 @@ fn test_compute_reward() {
             bond_amount: Uint128::from(100u128),
         }
     );
+
+    // add new schedule
+    let msg = ExecuteMsg::AddSchedules {
+        schedules: vec![StakingSchedule::new(
+            env.block.height,
+            env.block.height + 100,
+            Uint128::from(1_000u128),
+        )],
+    };
+    let owner_info = mock_info(&owner, &[]);
+    let _res = execute(deps.as_mut(), env.clone(), owner_info, msg).unwrap();
+
+    assert_eq!(
+        from_binary::<StakerInfoResponse>(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::StakerInfo {
+                    staker: "addr0000".to_string(),
+                    block_height: None,
+                },
+            )
+            .unwrap()
+        )
+        .unwrap(),
+        StakerInfoResponse {
+            staker: "addr0000".to_string(),
+            reward_index: Decimal::from_ratio(15000u64, 1u64),
+            pending_reward: Uint128::from(2000000u128),
+            bond_amount: Uint128::from(100u128),
+        }
+    );
+
+    // query future block (+10)
+    // 1,000,000 rewards distributed from schedule from InitMsg
+    // 100 rewards distributed from new schedule (1_000 on 100 blocks, means 100 for 10 blocks)
+    assert_eq!(
+        from_binary::<StakerInfoResponse>(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::StakerInfo {
+                    staker: "addr0000".to_string(),
+                    block_height: Some(env.block.height + 10),
+                },
+            )
+            .unwrap()
+        )
+        .unwrap(),
+        StakerInfoResponse {
+            staker: "addr0000".to_string(),
+            reward_index: Decimal::from_ratio(25001u64, 1u64),
+            pending_reward: Uint128::from(3000000u128) + Uint128::from(1_00u128),
+            bond_amount: Uint128::from(100u128),
+        }
+    );
+}
+
+#[test]
+fn fail_to_add_schedule_that_start_in_past() {
+    let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000".to_string();
+
+    let msg = InstantiateMsg {
+        owner: owner.clone(),
+        psi_token: "reward0000".to_string(),
+        staking_token: "staking0000".to_string(),
+        distribution_schedule: vec![StakingSchedule::new(100, 110, Uint128::from(1000000u128))],
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let msg = ExecuteMsg::AddSchedules {
+        schedules: vec![StakingSchedule::new(
+            env.block.height - 1,
+            env.block.height + 10,
+            Uint128::from(1_000u128),
+        )],
+    };
+    let owner_info = mock_info(&owner, &[]);
+    let res = execute(deps.as_mut(), env.clone(), owner_info, msg);
+
+    assert!(res.is_err());
+    if let StdError::GenericErr { msg } = res.err().unwrap() {
+        assert_eq!("schedule start_time is smaller than current block", msg);
+    } else {
+        panic!("wrong error");
+    }
+}
+
+#[test]
+fn fail_to_add_schedule_from_non_owner() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner0000".to_string(),
+        psi_token: "reward0000".to_string(),
+        staking_token: "staking0000".to_string(),
+        distribution_schedule: vec![StakingSchedule::new(100, 110, Uint128::from(1000000u128))],
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    // add new schedule from common user (not owner)
+    let msg = ExecuteMsg::AddSchedules {
+        schedules: vec![StakingSchedule::new(
+            env.block.height - 1,
+            env.block.height + 1,
+            Uint128::from(1_000u128),
+        )],
+    };
+
+    let res = execute(deps.as_mut(), env.clone(), info, msg);
+    assert!(res.is_err());
+    if let StdError::GenericErr { msg } = res.err().unwrap() {
+        assert_eq!("unauthorized", msg);
+    } else {
+        panic!("wrong error");
+    }
 }
 
 #[test]
@@ -358,11 +487,12 @@ fn test_withdraw() {
     let mut deps = mock_dependencies(&[]);
 
     let msg = InstantiateMsg {
+        owner: "owner0000".to_string(),
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            (12345, 12345 + 100, Uint128::from(1000000u128)),
-            (12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1000000u128)),
+            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
         ],
     };
 
@@ -399,4 +529,49 @@ fn test_withdraw() {
             funds: vec![],
         }))]
     );
+}
+
+#[test]
+fn change_owner() {
+    let mut deps = mock_dependencies(&[]);
+    let owner = "owner0000".to_string();
+    let new_owner = "owner0001".to_string();
+
+    let msg = InstantiateMsg {
+        owner: owner.clone(),
+        psi_token: "psi_token".to_string(),
+        staking_token: "staking0000".to_string(),
+        distribution_schedule: vec![StakingSchedule::new(100, 110, Uint128::from(1000000u128))],
+    };
+
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let msg = ExecuteMsg::UpdateOwner {
+        owner: new_owner.clone(),
+    };
+    let info = mock_info(&owner, &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+
+    assert_eq!(
+        from_binary::<ConfigResponse>(
+            &query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()
+        )
+        .unwrap(),
+        ConfigResponse {
+            owner: new_owner.clone(),
+            psi_token: "psi_token".to_string(),
+            staking_token: "staking0000".to_string(),
+            distribution_schedule: vec![StakingSchedule::new(100, 110, Uint128::from(1000000u128))],
+        }
+    );
+
+    //try to change owner again, but from old owner
+    let res = execute(deps.as_mut(), mock_env(), info.clone(), msg);
+    assert!(res.is_err());
+    if let StdError::GenericErr { msg } = res.err().unwrap() {
+        assert_eq!("unauthorized", msg);
+    } else {
+        panic!("wrong error");
+    }
 }
