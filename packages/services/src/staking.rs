@@ -31,16 +31,16 @@ pub enum ExecuteMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakingSchedule {
-    pub start_time: u64,
-    pub end_time: u64,
+    pub start_block: u64,
+    pub end_block: u64,
     pub amount: Uint128,
 }
 
 impl StakingSchedule {
-    pub fn new(start_time: u64, end_time: u64, amount: Uint128) -> Self {
+    pub fn new(start_block: u64, end_block: u64, amount: Uint128) -> Self {
         Self {
-            start_time,
-            end_time,
+            start_block,
+            end_block,
             amount,
         }
     }

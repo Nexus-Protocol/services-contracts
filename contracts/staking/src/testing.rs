@@ -443,7 +443,7 @@ fn fail_to_add_schedule_that_start_in_past() {
 
     assert!(res.is_err());
     if let StdError::GenericErr { msg } = res.err().unwrap() {
-        assert_eq!("schedule start_time is smaller than current block", msg);
+        assert_eq!("schedule start_block is smaller than current block", msg);
     } else {
         panic!("wrong error");
     }

@@ -213,9 +213,9 @@ pub fn add_schedules(
 ) -> StdResult<Response> {
     let mut config = read_config(deps.storage)?;
     for schedule in new_schedules.iter() {
-        if schedule.start_time < env.block.height {
+        if schedule.start_block < env.block.height {
             return Err(StdError::generic_err(
-                "schedule start_time is smaller than current block",
+                "schedule start_block is smaller than current block",
             ));
         }
     }
@@ -258,15 +258,15 @@ fn compute_reward(config: &Config, state: &mut State, block_height: u64) {
 
     let mut distributed_amount: Uint128 = Uint128::zero();
     for s in config.distribution_schedule.iter() {
-        if s.start_time > block_height || s.end_time < state.last_distributed {
+        if s.start_block > block_height || s.end_block < state.last_distributed {
             continue;
         }
 
         // min(s.1, block_height) - max(s.0, last_distributed)
-        let passed_blocks = std::cmp::min(s.end_time, block_height)
-            - std::cmp::max(s.start_time, state.last_distributed);
+        let passed_blocks = std::cmp::min(s.end_block, block_height)
+            - std::cmp::max(s.start_block, state.last_distributed);
 
-        let num_blocks = s.end_time - s.start_time;
+        let num_blocks = s.end_block - s.start_block;
         let distribution_amount_per_block: Decimal = Decimal::from_ratio(s.amount, num_blocks);
         distributed_amount += distribution_amount_per_block * Uint128::from(passed_blocks as u128);
     }

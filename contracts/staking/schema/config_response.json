@@ -30,19 +30,19 @@
       "type": "object",
       "required": [
         "amount",
-        "end_time",
-        "start_time"
+        "end_block",
+        "start_block"
       ],
       "properties": {
         "amount": {
           "$ref": "#/definitions/Uint128"
         },
-        "end_time": {
+        "end_block": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
         },
-        "start_time": {
+        "start_block": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
