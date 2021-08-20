@@ -2,13 +2,13 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Api, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use services::staking::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakerInfoResponse,
-    StateResponse,
+    StakingSchedule, StateResponse,
 };
 
 use crate::state::{
@@ -28,6 +28,7 @@ pub fn instantiate(
     store_config(
         deps.storage,
         &Config {
+            owner: deps.api.addr_canonicalize(&msg.owner)?,
             psi_token: deps.api.addr_canonicalize(&msg.psi_token)?,
             staking_token: deps.api.addr_canonicalize(&msg.staking_token)?,
             distribution_schedule: msg.distribution_schedule,
@@ -52,7 +53,23 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Unbond { amount } => unbond(deps, env, info, amount),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
+        ExecuteMsg::AddSchedules { schedules } => {
+            assert_owner_privilege(deps.storage, deps.api, info.sender)?;
+            add_schedules(deps, env, schedules)
+        }
+        ExecuteMsg::UpdateOwner { owner } => {
+            assert_owner_privilege(deps.storage, deps.api, info.sender)?;
+            update_owner(deps, owner)
+        }
     }
+}
+
+fn assert_owner_privilege(storage: &dyn Storage, api: &dyn Api, sender: Addr) -> StdResult<()> {
+    if read_config(storage)?.owner != api.addr_canonicalize(sender.as_str())? {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    Ok(())
 }
 
 pub fn receive_cw20(
@@ -189,6 +206,34 @@ pub fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
         ]))
 }
 
+pub fn add_schedules(
+    deps: DepsMut,
+    env: Env,
+    mut new_schedules: Vec<StakingSchedule>,
+) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+    for schedule in new_schedules.iter() {
+        if schedule.start_time < env.block.height {
+            return Err(StdError::generic_err(
+                "schedule start_time is smaller than current block",
+            ));
+        }
+    }
+    config.distribution_schedule.append(&mut new_schedules);
+
+    store_config(deps.storage, &config)?;
+
+    Ok(Response::new().add_attribute("action", "add_schedules"))
+}
+
+pub fn update_owner(deps: DepsMut, new_owner: String) -> StdResult<Response> {
+    let mut config = read_config(deps.storage)?;
+    config.owner = deps.api.addr_canonicalize(&new_owner)?;
+    store_config(deps.storage, &config)?;
+
+    Ok(Response::new().add_attribute("action", "update_owner"))
+}
+
 fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {
     state.total_bond_amount += amount;
     staker_info.bond_amount += amount;
@@ -213,16 +258,16 @@ fn compute_reward(config: &Config, state: &mut State, block_height: u64) {
 
     let mut distributed_amount: Uint128 = Uint128::zero();
     for s in config.distribution_schedule.iter() {
-        if s.0 > block_height || s.1 < state.last_distributed {
+        if s.start_time > block_height || s.end_time < state.last_distributed {
             continue;
         }
 
         // min(s.1, block_height) - max(s.0, last_distributed)
-        let passed_blocks =
-            std::cmp::min(s.1, block_height) - std::cmp::max(s.0, state.last_distributed);
+        let passed_blocks = std::cmp::min(s.end_time, block_height)
+            - std::cmp::max(s.start_time, state.last_distributed);
 
-        let num_blocks = s.1 - s.0;
-        let distribution_amount_per_block: Decimal = Decimal::from_ratio(s.2, num_blocks);
+        let num_blocks = s.end_time - s.start_time;
+        let distribution_amount_per_block: Decimal = Decimal::from_ratio(s.amount, num_blocks);
         distributed_amount += distribution_amount_per_block * Uint128::from(passed_blocks as u128);
     }
 
@@ -256,6 +301,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let state = read_config(deps.storage)?;
     let resp = ConfigResponse {
+        owner: deps.api.addr_humanize(&state.owner)?.to_string(),
         psi_token: deps.api.addr_humanize(&state.psi_token)?.to_string(),
         staking_token: deps.api.addr_humanize(&state.staking_token)?.to_string(),
         distribution_schedule: state.distribution_schedule,

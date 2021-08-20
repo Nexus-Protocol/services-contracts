@@ -6,9 +6,10 @@ use cw20::Cw20ReceiveMsg;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    pub owner: String,
     pub psi_token: String,
     pub staking_token: String, // lp token of PSI-UST or nAsset-PSI pair contract
-    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
+    pub distribution_schedule: Vec<StakingSchedule>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -20,6 +21,29 @@ pub enum ExecuteMsg {
     },
     /// Withdraw pending rewards
     Withdraw {},
+    AddSchedules {
+        schedules: Vec<StakingSchedule>,
+    },
+    UpdateOwner {
+        owner: String,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StakingSchedule {
+    pub start_time: u64,
+    pub end_time: u64,
+    pub amount: Uint128,
+}
+
+impl StakingSchedule {
+    pub fn new(start_time: u64, end_time: u64, amount: Uint128) -> Self {
+        Self {
+            start_time,
+            end_time,
+            amount,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -43,9 +67,10 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    pub owner: String,
     pub psi_token: String,
     pub staking_token: String,
-    pub distribution_schedule: Vec<(u64, u64, Uint128)>,
+    pub distribution_schedule: Vec<StakingSchedule>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
