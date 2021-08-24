@@ -9,6 +9,10 @@ use services::staking::{
     StakingSchedule, StateResponse,
 };
 
+fn mock_env_block_time() -> u64 {
+    mock_env().block.time.seconds()
+}
+
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies(&[]);
@@ -41,14 +45,14 @@ fn proper_initialization() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::State { block_height: None },
+        QueryMsg::State { time_seconds: None },
     )
     .unwrap();
     let state: StateResponse = from_binary(&res).unwrap();
     assert_eq!(
         state,
         StateResponse {
-            last_distributed: 12345,
+            last_distributed: mock_env_block_time(),
             total_bond_amount: Uint128::zero(),
             global_reward_index: Decimal::zero(),
         }
@@ -64,8 +68,16 @@ fn test_bond_tokens() {
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1000000u128)),
-            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            StakingSchedule::new(
+                mock_env_block_time(),
+                mock_env_block_time() + 100,
+                Uint128::from(1000000u128),
+            ),
+            StakingSchedule::new(
+                mock_env_block_time() + 100,
+                mock_env_block_time() + 200,
+                Uint128::from(10000000u128),
+            ),
         ],
     };
 
@@ -89,7 +101,7 @@ fn test_bond_tokens() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    time_seconds: None,
                 },
             )
             .unwrap(),
@@ -108,7 +120,7 @@ fn test_bond_tokens() {
             &query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::State { block_height: None }
+                QueryMsg::State { time_seconds: None }
             )
             .unwrap()
         )
@@ -116,7 +128,7 @@ fn test_bond_tokens() {
         StateResponse {
             total_bond_amount: Uint128::from(100u128),
             global_reward_index: Decimal::zero(),
-            last_distributed: 12345,
+            last_distributed: mock_env_block_time(),
         }
     );
 
@@ -126,7 +138,7 @@ fn test_bond_tokens() {
         amount: Uint128::from(100u128),
         msg: to_binary(&Cw20HookMsg::Bond {}).unwrap(),
     });
-    env.block.height += 10;
+    env.block.time = env.block.time.plus_seconds(10);
 
     let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
@@ -137,7 +149,7 @@ fn test_bond_tokens() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    time_seconds: None,
                 },
             )
             .unwrap(),
@@ -156,7 +168,7 @@ fn test_bond_tokens() {
             &query(
                 deps.as_ref(),
                 mock_env(),
-                QueryMsg::State { block_height: None }
+                QueryMsg::State { time_seconds: None }
             )
             .unwrap()
         )
@@ -164,7 +176,7 @@ fn test_bond_tokens() {
         StateResponse {
             total_bond_amount: Uint128::from(200u128),
             global_reward_index: Decimal::from_ratio(1000u128, 1u128),
-            last_distributed: 12345 + 10,
+            last_distributed: mock_env_block_time() + 10,
         }
     );
 
@@ -192,8 +204,16 @@ fn test_unbond() {
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1000000u128)),
-            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            StakingSchedule::new(
+                mock_env_block_time(),
+                mock_env_block_time() + 100,
+                Uint128::from(1000000u128),
+            ),
+            StakingSchedule::new(
+                mock_env_block_time() + 100,
+                mock_env_block_time() + 200,
+                Uint128::from(10000000u128),
+            ),
         ],
     };
 
@@ -254,8 +274,16 @@ fn test_compute_reward() {
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1_000_000u128)),
-            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10_000_000u128)),
+            StakingSchedule::new(
+                mock_env_block_time(),
+                mock_env_block_time() + 100,
+                Uint128::from(1_000_000u128),
+            ),
+            StakingSchedule::new(
+                mock_env_block_time() + 100,
+                mock_env_block_time() + 200,
+                Uint128::from(10_000_000u128),
+            ),
         ],
     };
 
@@ -272,9 +300,9 @@ fn test_compute_reward() {
     let mut env = mock_env();
     let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
-    // 100 blocks passed
+    // 100 seconds passed
     // 1,000,000 rewards distributed
-    env.block.height += 100;
+    env.block.time = env.block.time.plus_seconds(100);
 
     // bond 100 more tokens
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -291,7 +319,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    time_seconds: None,
                 },
             )
             .unwrap()
@@ -305,9 +333,9 @@ fn test_compute_reward() {
         }
     );
 
-    // 10 blocks passed
+    // 10 seconds passed
     // 1,000,000 rewards distributed
-    env.block.height += 10;
+    env.block.time = env.block.time.plus_seconds(10);
     let info = mock_info("addr0000", &[]);
 
     // unbond
@@ -322,7 +350,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    time_seconds: None,
                 },
             )
             .unwrap()
@@ -344,7 +372,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: Some(env.block.height + 10),
+                    time_seconds: Some(env.block.time.seconds() + 10),
                 },
             )
             .unwrap()
@@ -361,8 +389,8 @@ fn test_compute_reward() {
     // add new schedule
     let msg = ExecuteMsg::AddSchedules {
         schedules: vec![StakingSchedule::new(
-            env.block.height,
-            env.block.height + 100,
+            env.block.time.seconds(),
+            env.block.time.plus_seconds(100).seconds(),
             Uint128::from(1_000u128),
         )],
     };
@@ -376,7 +404,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: None,
+                    time_seconds: None,
                 },
             )
             .unwrap()
@@ -400,7 +428,7 @@ fn test_compute_reward() {
                 mock_env(),
                 QueryMsg::StakerInfo {
                     staker: "addr0000".to_string(),
-                    block_height: Some(env.block.height + 10),
+                    time_seconds: Some(env.block.time.seconds() + 10),
                 },
             )
             .unwrap()
@@ -433,8 +461,8 @@ fn fail_to_add_schedule_that_start_in_past() {
 
     let msg = ExecuteMsg::AddSchedules {
         schedules: vec![StakingSchedule::new(
-            env.block.height - 1,
-            env.block.height + 10,
+            env.block.time.minus_seconds(1).seconds(),
+            env.block.time.plus_seconds(10).seconds(),
             Uint128::from(1_000u128),
         )],
     };
@@ -443,7 +471,7 @@ fn fail_to_add_schedule_that_start_in_past() {
 
     assert!(res.is_err());
     if let StdError::GenericErr { msg } = res.err().unwrap() {
-        assert_eq!("schedule start_block is smaller than current block", msg);
+        assert_eq!("schedule start_time is smaller than current time", msg);
     } else {
         panic!("wrong error");
     }
@@ -467,8 +495,8 @@ fn fail_to_add_schedule_from_non_owner() {
     // add new schedule from common user (not owner)
     let msg = ExecuteMsg::AddSchedules {
         schedules: vec![StakingSchedule::new(
-            env.block.height - 1,
-            env.block.height + 1,
+            env.block.time.minus_seconds(1).seconds(),
+            env.block.time.plus_seconds(1).seconds(),
             Uint128::from(1_000u128),
         )],
     };
@@ -491,8 +519,16 @@ fn test_withdraw() {
         psi_token: "reward0000".to_string(),
         staking_token: "staking0000".to_string(),
         distribution_schedule: vec![
-            StakingSchedule::new(12345, 12345 + 100, Uint128::from(1000000u128)),
-            StakingSchedule::new(12345 + 100, 12345 + 200, Uint128::from(10000000u128)),
+            StakingSchedule::new(
+                mock_env_block_time(),
+                mock_env_block_time() + 100,
+                Uint128::from(1000000u128),
+            ),
+            StakingSchedule::new(
+                mock_env_block_time() + 100,
+                mock_env_block_time() + 200,
+                Uint128::from(10000000u128),
+            ),
         ],
     };
 
@@ -509,9 +545,9 @@ fn test_withdraw() {
     let mut env = mock_env();
     let _res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // 100 blocks passed
+    // 100 seconds passed
     // 1,000,000 rewards distributed
-    env.block.height += 100;
+    env.block.time = env.block.time.plus_seconds(100);
     let info = mock_info("addr0000", &[]);
 
     let msg = ExecuteMsg::Withdraw {};

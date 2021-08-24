@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Api, Binary, CanonicalAddr, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Storage, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Response, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 
 use services::staking::{
@@ -38,7 +38,7 @@ pub fn instantiate(
     store_state(
         deps.storage,
         &State {
-            last_distributed: env.block.height,
+            last_distributed: get_time(&env.block),
             total_bond_amount: Uint128::zero(),
             global_reward_index: Decimal::zero(),
         },
@@ -95,6 +95,7 @@ pub fn receive_cw20(
 }
 
 pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint128) -> StdResult<Response> {
+    let current_time = get_time(&env.block);
     let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(sender_addr.as_str())?;
 
     let config: Config = read_config(deps.storage)?;
@@ -102,7 +103,7 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint128) -> StdR
     let mut staker_info: StakerInfo = read_staker_info(deps.storage, &sender_addr_raw)?;
 
     // Compute global reward & staker reward
-    compute_reward(&config, &mut state, env.block.height);
+    compute_reward(&config, &mut state, current_time);
     compute_staker_reward(&state, &mut staker_info)?;
 
     // Increase bond_amount
@@ -120,6 +121,7 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint128) -> StdR
 }
 
 pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> StdResult<Response> {
+    let current_time = get_time(&env.block);
     let config: Config = read_config(deps.storage)?;
     let sender_addr_raw: CanonicalAddr = deps.api.addr_canonicalize(info.sender.as_str())?;
 
@@ -131,7 +133,7 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> St
     }
 
     // Compute global reward & staker reward
-    compute_reward(&config, &mut state, env.block.height);
+    compute_reward(&config, &mut state, current_time);
     compute_staker_reward(&state, &mut staker_info)?;
 
     // Decrease bond_amount
@@ -164,8 +166,13 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> St
         ]))
 }
 
+fn get_time(block: &BlockInfo) -> u64 {
+    block.time.seconds()
+}
+
 // withdraw rewards to executor
 pub fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+    let current_time = get_time(&env.block);
     let sender_addr_raw = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     let config: Config = read_config(deps.storage)?;
@@ -173,7 +180,7 @@ pub fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Respons
     let mut staker_info = read_staker_info(deps.storage, &sender_addr_raw)?;
 
     // Compute global reward & staker reward
-    compute_reward(&config, &mut state, env.block.height);
+    compute_reward(&config, &mut state, current_time);
     compute_staker_reward(&state, &mut staker_info)?;
 
     let amount = staker_info.pending_reward;
@@ -213,9 +220,9 @@ pub fn add_schedules(
 ) -> StdResult<Response> {
     let mut config = read_config(deps.storage)?;
     for schedule in new_schedules.iter() {
-        if schedule.start_block < env.block.height {
+        if schedule.start_time < get_time(&env.block) {
             return Err(StdError::generic_err(
-                "schedule start_block is smaller than current block",
+                "schedule start_time is smaller than current time",
             ));
         }
     }
@@ -250,28 +257,27 @@ fn decrease_bond_amount(
 }
 
 // compute distributed rewards and update global reward index
-fn compute_reward(config: &Config, state: &mut State, block_height: u64) {
+fn compute_reward(config: &Config, state: &mut State, current_time: u64) {
     if state.total_bond_amount.is_zero() {
-        state.last_distributed = block_height;
+        state.last_distributed = current_time;
         return;
     }
 
     let mut distributed_amount: Uint128 = Uint128::zero();
     for s in config.distribution_schedule.iter() {
-        if s.start_block > block_height || s.end_block < state.last_distributed {
+        if s.start_time > current_time || s.end_time < state.last_distributed {
             continue;
         }
 
-        // min(s.1, block_height) - max(s.0, last_distributed)
-        let passed_blocks = std::cmp::min(s.end_block, block_height)
-            - std::cmp::max(s.start_block, state.last_distributed);
+        let passed_time = std::cmp::min(s.end_time, current_time)
+            - std::cmp::max(s.start_time, state.last_distributed);
 
-        let num_blocks = s.end_block - s.start_block;
-        let distribution_amount_per_block: Decimal = Decimal::from_ratio(s.amount, num_blocks);
-        distributed_amount += distribution_amount_per_block * Uint128::from(passed_blocks as u128);
+        let time_period = s.end_time - s.start_time;
+        let distribution_amount_per_time: Decimal = Decimal::from_ratio(s.amount, time_period);
+        distributed_amount += distribution_amount_per_time * Uint128::from(passed_time as u128);
     }
 
-    state.last_distributed = block_height;
+    state.last_distributed = current_time;
     state.global_reward_index = state.global_reward_index
         + Decimal::from_ratio(distributed_amount, state.total_bond_amount);
 }
@@ -290,11 +296,11 @@ fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResu
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::State { block_height } => to_binary(&query_state(deps, block_height)?),
+        QueryMsg::State { time_seconds } => to_binary(&query_state(deps, time_seconds)?),
         QueryMsg::StakerInfo {
             staker,
-            block_height,
-        } => to_binary(&query_staker_info(deps, staker, block_height)?),
+            time_seconds,
+        } => to_binary(&query_staker_info(deps, staker, time_seconds)?),
     }
 }
 
@@ -310,11 +316,11 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(resp)
 }
 
-pub fn query_state(deps: Deps, block_height: Option<u64>) -> StdResult<StateResponse> {
+pub fn query_state(deps: Deps, time_seconds: Option<u64>) -> StdResult<StateResponse> {
     let mut state: State = read_state(deps.storage)?;
-    if let Some(block_height) = block_height {
+    if let Some(time_seconds) = time_seconds {
         let config = read_config(deps.storage)?;
-        compute_reward(&config, &mut state, block_height);
+        compute_reward(&config, &mut state, time_seconds);
     }
 
     Ok(StateResponse {
@@ -327,16 +333,16 @@ pub fn query_state(deps: Deps, block_height: Option<u64>) -> StdResult<StateResp
 pub fn query_staker_info(
     deps: Deps,
     staker: String,
-    block_height: Option<u64>,
+    time_seconds: Option<u64>,
 ) -> StdResult<StakerInfoResponse> {
     let staker_raw = deps.api.addr_canonicalize(&staker)?;
 
     let mut staker_info: StakerInfo = read_staker_info(deps.storage, &staker_raw)?;
-    if let Some(block_height) = block_height {
+    if let Some(time_seconds) = time_seconds {
         let config = read_config(deps.storage)?;
         let mut state = read_state(deps.storage)?;
 
-        compute_reward(&config, &mut state, block_height);
+        compute_reward(&config, &mut state, time_seconds);
         compute_staker_reward(&state, &mut staker_info)?;
     }
 

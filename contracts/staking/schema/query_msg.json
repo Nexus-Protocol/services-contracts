@@ -23,7 +23,7 @@
         "state": {
           "type": "object",
           "properties": {
-            "block_height": {
+            "time_seconds": {
               "type": [
                 "integer",
                 "null"
@@ -48,16 +48,16 @@
             "staker"
           ],
           "properties": {
-            "block_height": {
+            "staker": {
+              "type": "string"
+            },
+            "time_seconds": {
               "type": [
                 "integer",
                 "null"
               ],
               "format": "uint64",
               "minimum": 0.0
-            },
-            "staker": {
-              "type": "string"
             }
           }
         }
