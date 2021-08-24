@@ -61,6 +61,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             assert_owner_privilege(deps.storage, deps.api, info.sender)?;
             update_owner(deps, owner)
         }
+        ExecuteMsg::MigrateStaking {
+            new_staking_contract,
+        } => {
+            assert_owner_privilege(deps.storage, deps.api, info.sender)?;
+            migrate_staking(deps, env, new_staking_contract)
+        }
     }
 }
 
@@ -239,6 +245,68 @@ pub fn update_owner(deps: DepsMut, new_owner: String) -> StdResult<Response> {
     store_config(deps.storage, &config)?;
 
     Ok(Response::new().add_attribute("action", "update_owner"))
+}
+
+pub fn migrate_staking(
+    deps: DepsMut,
+    env: Env,
+    new_staking_contract: String,
+) -> StdResult<Response> {
+    let mut config: Config = read_config(deps.storage)?;
+
+    let total_distribution_amount: Uint128 = config
+        .distribution_schedule
+        .iter()
+        .map(|item| item.amount)
+        .sum();
+
+    let current_time = get_time(&env.block);
+    // eliminate distribution slots that have not started
+    config
+        .distribution_schedule
+        .retain(|slot| slot.start_time < current_time);
+
+    let mut distributed_amount = Uint128::zero();
+    for s in config.distribution_schedule.iter_mut() {
+        if s.end_time < current_time {
+            // all distributed
+            distributed_amount += s.amount;
+        } else {
+            // partially distributed slot
+            let time_period = s.end_time - s.start_time;
+            let distribution_amount_per_time: Decimal = Decimal::from_ratio(s.amount, time_period);
+
+            let passed_time = current_time - s.start_time;
+            let distributed_amount_on_slot =
+                distribution_amount_per_time * Uint128::from(passed_time as u128);
+            distributed_amount += distributed_amount_on_slot;
+
+            // modify distribution slot
+            s.end_time = current_time;
+            s.amount = distributed_amount_on_slot;
+        }
+    }
+
+    // update config
+    store_config(deps.storage, &config)?;
+
+    let remaining_psi = total_distribution_amount.checked_sub(distributed_amount)?;
+
+    let psi_token_addr = deps.api.addr_humanize(&config.psi_token)?;
+    Ok(Response::new()
+        .add_messages(vec![WasmMsg::Execute {
+            contract_addr: psi_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: new_staking_contract,
+                amount: remaining_psi,
+            })?,
+            funds: vec![],
+        }])
+        .add_attributes(vec![
+            ("action", "migrate_staking"),
+            ("distributed_amount", &distributed_amount.to_string()),
+            ("remaining_amount", &remaining_psi.to_string()),
+        ]))
 }
 
 fn increase_bond_amount(state: &mut State, staker_info: &mut StakerInfo, amount: Uint128) {
