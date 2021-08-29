@@ -1,7 +1,5 @@
 use cosmwasm_std::{Addr, Binary, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
 
-use cosmwasm_storage::to_length_prefixed;
-
 pub fn query_token_balance(
     deps: Deps,
     contract_addr: &Addr,
@@ -13,7 +11,7 @@ pub fn query_token_balance(
         .query(&QueryRequest::Wasm(WasmQuery::Raw {
             contract_addr: contract_addr.to_string(),
             key: Binary::from(concat(
-                &to_length_prefixed(b"balance").to_vec(),
+                b"balance",
                 (deps.api.addr_canonicalize(account_addr.as_str())?).as_slice(),
             )),
         }))

@@ -3,7 +3,6 @@ use cosmwasm_std::{
     from_slice, to_binary, Addr, Api, CanonicalAddr, Coin, ContractResult, Empty, OwnedDeps,
     Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use cosmwasm_storage::to_length_prefixed;
 use std::collections::HashMap;
 
 use cw20::TokenInfoResponse;
@@ -93,8 +92,8 @@ impl WasmMockQuerier {
                         }
                     };
 
-                let prefix_token_info = to_length_prefixed(b"token_info").to_vec();
-                let prefix_balance = to_length_prefixed(b"balance").to_vec();
+                let prefix_token_info = b"token_info";
+                let prefix_balance = b"balance";
 
                 if key.to_vec() == prefix_token_info {
                     let mut total_supply = Uint128::zero();
