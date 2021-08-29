@@ -1,4 +1,6 @@
-use cosmwasm_std::{Addr, Binary, Deps, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{
+    from_binary, to_binary, Addr, Binary, Deps, QueryRequest, StdResult, Uint128, WasmQuery,
+};
 
 use cosmwasm_storage::to_length_prefixed;
 
@@ -8,7 +10,7 @@ pub fn query_token_balance(
     account_addr: &Addr,
 ) -> StdResult<Uint128> {
     // load balance form the token contract
-    Ok(deps
+    let res: Binary = deps
         .querier
         .query(&QueryRequest::Wasm(WasmQuery::Raw {
             contract_addr: contract_addr.to_string(),
@@ -17,7 +19,10 @@ pub fn query_token_balance(
                 (deps.api.addr_canonicalize(account_addr.as_str())?).as_slice(),
             )),
         }))
-        .unwrap_or_else(|_| Uint128::zero()))
+        .unwrap_or_else(|_| to_binary(&Uint128::zero()).unwrap());
+
+    let balance: Uint128 = from_binary(&res)?;
+    Ok(balance.into())
 }
 
 #[inline]

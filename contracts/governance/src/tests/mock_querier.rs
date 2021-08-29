@@ -103,12 +103,15 @@ impl WasmMockQuerier {
                         total_supply += *balance.1;
                     }
 
-                    SystemResult::Ok(ContractResult::from(to_binary(&TokenInfoResponse {
-                        name: "some_token_name".to_string(),
-                        symbol: "some_token_symbol".to_string(),
-                        decimals: 6,
-                        total_supply,
-                    })))
+                    SystemResult::Ok(ContractResult::from(to_binary(
+                        &to_binary(&TokenInfoResponse {
+                            name: "some_token_name".to_string(),
+                            symbol: "some_token_symbol".to_string(),
+                            decimals: 6,
+                            total_supply,
+                        })
+                        .unwrap(),
+                    )))
                 } else if key[..prefix_balance.len()].to_vec() == prefix_balance {
                     let key_address: &[u8] = &key[prefix_balance.len()..];
                     let address_raw: CanonicalAddr = CanonicalAddr::from(key_address);
@@ -134,7 +137,9 @@ impl WasmMockQuerier {
                         }
                     };
 
-                    SystemResult::Ok(ContractResult::from(to_binary(&balance)))
+                    SystemResult::Ok(ContractResult::from(to_binary(
+                        &to_binary(&balance).unwrap(),
+                    )))
                 } else {
                     panic!("DO NOT ENTER HERE")
                 }
