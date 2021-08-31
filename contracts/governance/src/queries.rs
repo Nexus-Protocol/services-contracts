@@ -40,7 +40,7 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
 }
 
 pub fn query_poll(deps: Deps, poll_id: u64) -> StdResult<PollResponse> {
-    let poll = may_load_poll(deps.storage, &poll_id)?;
+    let poll = may_load_poll(deps.storage, poll_id)?;
     if let Some(poll) = poll {
         let data_list: Option<Vec<PollExecuteMsg>> = poll.execute_data.map(|exe_msgs| {
             exe_msgs
@@ -126,7 +126,7 @@ pub fn query_voters(
     limit: Option<u32>,
     order_by: Option<OrderBy>,
 ) -> StdResult<VotersResponse> {
-    let poll = may_load_poll(deps.storage, &poll_id)?;
+    let poll = may_load_poll(deps.storage, poll_id)?;
     if let Some(poll) = poll {
         let voters = if poll.status != PollStatus::InProgress {
             vec![]
@@ -170,7 +170,7 @@ pub fn query_staker(deps: Deps, env: Env, address: String) -> StdResult<StakerRe
 
     // filter out not in-progress polls
     token_manager.locked_balance.retain(|(poll_id, _)| {
-        let poll: Poll = load_poll(deps.storage, &poll_id).unwrap();
+        let poll: Poll = load_poll(deps.storage, *poll_id).unwrap();
         poll.status == PollStatus::InProgress
     });
 

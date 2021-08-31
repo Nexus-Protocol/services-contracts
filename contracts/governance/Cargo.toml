@@ -29,7 +29,6 @@ cw20 = { version = "0.8.1" }
 cw0 = { version = "0.8.1" }
 services = { path = "../../packages/services", default-features = false, version = "1.0.0"}
 cosmwasm-std = { version = "0.16.1", features = ["iterator"] }
-# TODO: REMOVE ME
 cosmwasm-storage = { version = "0.16.1", features = ["iterator"] }
 cw-storage-plus = { version = "0.8.1" }
 schemars = "0.8.1"

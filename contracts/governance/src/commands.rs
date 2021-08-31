@@ -7,9 +7,9 @@ use services::governance::{PollExecuteMsg, PollStatus, VoteOption, VoterInfo};
 use crate::{
     querier::query_token_balance,
     state::{
-        load_bank, load_config, load_poll, load_state, may_load_bank, poll_indexer_store,
-        poll_voter_load, poll_voter_remove, poll_voter_store, store_bank, store_config, store_poll,
-        store_state, Config, ExecuteData, Poll, TokenManager,
+        load_bank, load_config, load_poll, load_poll_voter, load_state, may_load_bank,
+        remove_poll_indexer, remove_poll_voter, store_bank, store_config, store_poll,
+        store_poll_indexer, store_poll_voter, store_state, Config, ExecuteData, Poll, TokenManager,
     },
     utils,
 };
@@ -163,9 +163,8 @@ pub fn create_poll(
         staked_amount: None,
     };
 
-    store_poll(deps.storage, &poll_id, &new_poll)?;
-    poll_indexer_store(deps.storage, &PollStatus::InProgress)
-        .save(&poll_id.to_be_bytes(), &true)?;
+    store_poll(deps.storage, poll_id, &new_poll)?;
+    store_poll_indexer(deps.storage, &PollStatus::InProgress, poll_id)?;
 
     store_state(deps.storage, &state)?;
 
@@ -178,7 +177,7 @@ pub fn create_poll(
 }
 
 pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
-    let mut a_poll: Poll = load_poll(deps.storage, &poll_id)?;
+    let mut a_poll: Poll = load_poll(deps.storage, poll_id)?;
 
     if a_poll.status != PollStatus::InProgress {
         return Err(StdError::generic_err("Poll is not in progress"));
@@ -251,13 +250,13 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     store_state(deps.storage, &state)?;
 
     // Update poll indexer
-    poll_indexer_store(deps.storage, &PollStatus::InProgress).remove(&a_poll.id.to_be_bytes());
-    poll_indexer_store(deps.storage, &poll_status).save(&a_poll.id.to_be_bytes(), &true)?;
+    remove_poll_indexer(deps.storage, &PollStatus::InProgress, poll_id);
+    store_poll_indexer(deps.storage, &poll_status, poll_id)?;
 
     // Update poll status
     a_poll.status = poll_status;
     a_poll.total_balance_at_end_poll = Some(staked_weight);
-    store_poll(deps.storage, &poll_id, &a_poll)?;
+    store_poll(deps.storage, poll_id, &a_poll)?;
 
     Ok(Response::new()
         .add_submessages(messages)
@@ -271,7 +270,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
 
 pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let config: Config = load_config(deps.storage)?;
-    let mut a_poll = load_poll(deps.storage, &poll_id)?;
+    let mut a_poll = load_poll(deps.storage, poll_id)?;
 
     if a_poll.status != PollStatus::Passed {
         return Err(StdError::generic_err("Poll is not in passed status"));
@@ -281,11 +280,11 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
         return Err(StdError::generic_err("Timelock period has not expired"));
     }
 
-    poll_indexer_store(deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
-    poll_indexer_store(deps.storage, &PollStatus::Executed).save(&poll_id.to_be_bytes(), &true)?;
+    remove_poll_indexer(deps.storage, &PollStatus::Passed, poll_id);
+    store_poll_indexer(deps.storage, &PollStatus::Executed, poll_id)?;
 
     a_poll.status = PollStatus::Executed;
-    store_poll(deps.storage, &poll_id, &a_poll)?;
+    store_poll(deps.storage, poll_id, &a_poll)?;
 
     let mut messages: Vec<SubMsg> = vec![];
     if let Some(all_msgs) = a_poll.execute_data {
@@ -313,7 +312,7 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
 /// ExpirePoll is used to make the poll as expired state for querying purpose
 pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let config = load_config(deps.storage)?;
-    let mut a_poll = load_poll(deps.storage, &poll_id)?;
+    let mut a_poll = load_poll(deps.storage, poll_id)?;
 
     if a_poll.status != PollStatus::Passed {
         return Err(StdError::generic_err("Poll is not in passed status"));
@@ -329,11 +328,11 @@ pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response>
         return Err(StdError::generic_err("Expire height has not been reached"));
     }
 
-    poll_indexer_store(deps.storage, &PollStatus::Passed).remove(&poll_id.to_be_bytes());
-    poll_indexer_store(deps.storage, &PollStatus::Expired).save(&poll_id.to_be_bytes(), &true)?;
+    remove_poll_indexer(deps.storage, &PollStatus::Passed, poll_id);
+    store_poll_indexer(deps.storage, &PollStatus::Expired, poll_id)?;
 
     a_poll.status = PollStatus::Expired;
-    store_poll(deps.storage, &poll_id, &a_poll)?;
+    store_poll(deps.storage, poll_id, &a_poll)?;
 
     Ok(Response::new().add_attributes(vec![
         ("action", "expire_poll"),
@@ -344,7 +343,7 @@ pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response>
 /// SnapshotPoll is used to take a snapshot of the staked amount for quorum calculation
 pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let config = load_config(deps.storage)?;
-    let mut a_poll = load_poll(deps.storage, &poll_id)?;
+    let mut a_poll = load_poll(deps.storage, poll_id)?;
 
     if a_poll.status != PollStatus::InProgress {
         return Err(StdError::generic_err("Poll is not in progress"));
@@ -368,7 +367,7 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Respons
 
     a_poll.staked_amount = Some(staked_amount);
 
-    store_poll(deps.storage, &poll_id, &a_poll)?;
+    store_poll(deps.storage, poll_id, &a_poll)?;
 
     Ok(Response::new().add_attributes(vec![
         ("action", "snapshot_poll"),
@@ -391,13 +390,13 @@ pub fn cast_vote(
         return Err(StdError::generic_err("Poll does not exist"));
     }
 
-    let mut a_poll = load_poll(deps.storage, &poll_id)?;
+    let mut a_poll = load_poll(deps.storage, poll_id)?;
     if a_poll.status != PollStatus::InProgress || env.block.height > a_poll.end_height {
         return Err(StdError::generic_err("Poll is not in progress"));
     }
 
     // Check the voter already has a vote on the poll
-    if poll_voter_load(deps.storage, poll_id, &info.sender).is_ok() {
+    if load_poll_voter(deps.storage, poll_id, &info.sender).is_ok() {
         return Err(StdError::generic_err("User has already voted."));
     }
 
@@ -435,7 +434,7 @@ pub fn cast_vote(
     store_bank(deps.storage, &info.sender, &token_manager)?;
 
     // store poll voter && and update poll data
-    poll_voter_store(deps.storage, poll_id, &info.sender, &vote_info)?;
+    store_poll_voter(deps.storage, poll_id, &info.sender, &vote_info)?;
 
     // processing snapshot
     let time_to_end = a_poll.end_height - env.block.height;
@@ -444,7 +443,7 @@ pub fn cast_vote(
         a_poll.staked_amount = Some(total_balance);
     }
 
-    store_poll(deps.storage, &poll_id, &a_poll)?;
+    store_poll(deps.storage, poll_id, &a_poll)?;
 
     Ok(Response::new().add_attributes(vec![
         ("action", "cast_vote"),
@@ -539,11 +538,11 @@ fn compute_locked_balance(
 ) -> StdResult<u128> {
     // filter out not in-progress polls
     token_manager.locked_balance.retain(|(poll_id, _)| {
-        let poll: Poll = load_poll(storage, poll_id).unwrap();
+        let poll: Poll = load_poll(storage, *poll_id).unwrap();
 
         if poll.status != PollStatus::InProgress {
             // remove voter info from the poll
-            poll_voter_remove(storage, *poll_id, &voter);
+            remove_poll_voter(storage, *poll_id, &voter);
         }
 
         poll.status == PollStatus::InProgress

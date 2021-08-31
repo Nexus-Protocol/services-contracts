@@ -1,4 +1,3 @@
-use cosmwasm_storage::{bucket, bucket_read, Bucket, ReadonlyBucket};
 use cw_storage_plus::{Bound, Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,13 +10,14 @@ use std::cmp::Ordering;
 
 static KEY_CONFIG: Item<Config> = Item::new("config");
 static KEY_STATE: Item<State> = Item::new("state");
-static BANKS: Map<&Addr, TokenManager> = Map::new("bank");
+static BANK: Map<&Addr, TokenManager> = Map::new("bank");
 
-// static POLLS: Map<&u64, Poll> = Map::new("poll");
-static PREFIX_POLL: &[u8] = b"poll";
-static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
+static POLL: Map<U64Key, Poll> = Map::new("poll");
+//key: poll_status.to_string + poll_id
+static POLL_INDEXER: Map<(String, U64Key), bool> = Map::new("poll_indexer");
 
-static POLL_VOTERS: Map<(U64Key, &Addr), VoterInfo> = Map::new("poll_voter");
+//key: poll_id + poll_voter_addr
+static POLL_VOTER: Map<(U64Key, &Addr), VoterInfo> = Map::new("poll_voter");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -115,26 +115,24 @@ pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
     KEY_STATE.save(storage, state)
 }
 
-pub fn load_poll(storage: &dyn Storage, poll_id: &u64) -> StdResult<Poll> {
-    bucket_read(storage, PREFIX_POLL).load(&poll_id.to_be_bytes())
+pub fn load_poll(storage: &dyn Storage, poll_id: u64) -> StdResult<Poll> {
+    load_poll_internal(storage, poll_id.into())
 }
 
-pub fn load_poll_raw_key(storage: &dyn Storage, key: &[u8]) -> StdResult<Poll> {
-    bucket_read(storage, PREFIX_POLL).load(key)
+pub fn load_poll_internal(storage: &dyn Storage, poll_id: U64Key) -> StdResult<Poll> {
+    POLL.load(storage, poll_id)
 }
 
-pub fn may_load_poll(storage: &dyn Storage, poll_id: &u64) -> StdResult<Option<Poll>> {
-    bucket_read(storage, PREFIX_POLL).may_load(&poll_id.to_be_bytes())
+pub fn may_load_poll(storage: &dyn Storage, poll_id: u64) -> StdResult<Option<Poll>> {
+    POLL.may_load(storage, poll_id.into())
 }
 
-pub fn store_poll(storage: &mut dyn Storage, poll_id: &u64, poll: &Poll) -> StdResult<()> {
-    bucket(storage, PREFIX_POLL).save(&poll_id.to_be_bytes(), poll)
+pub fn store_poll(storage: &mut dyn Storage, poll_id: u64, poll: &Poll) -> StdResult<()> {
+    POLL.save(storage, poll_id.into(), poll)
 }
-
-//==========================
 
 pub fn may_load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<Option<TokenManager>> {
-    BANKS.may_load(storage, addr)
+    BANK.may_load(storage, addr)
 }
 
 pub fn load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<TokenManager> {
@@ -146,34 +144,36 @@ pub fn store_bank(
     addr: &Addr,
     token_manager: &TokenManager,
 ) -> StdResult<()> {
-    BANKS.save(storage, addr, token_manager)
+    BANK.save(storage, addr, token_manager)
 }
 
-pub fn poll_indexer_store<'a>(
-    storage: &'a mut dyn Storage,
+pub fn store_poll_indexer(
+    storage: &mut dyn Storage,
     status: &PollStatus,
-) -> Bucket<'a, bool> {
-    Bucket::multilevel(
-        storage,
-        &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
-    )
+    poll_id: u64,
+) -> StdResult<()> {
+    POLL_INDEXER.save(storage, (status.to_string(), poll_id.into()), &true)
 }
 
-pub fn poll_voter_store(
+pub fn remove_poll_indexer(storage: &mut dyn Storage, status: &PollStatus, poll_id: u64) {
+    POLL_INDEXER.remove(storage, (status.to_string(), poll_id.into()))
+}
+
+pub fn store_poll_voter(
     storage: &mut dyn Storage,
     poll_id: u64,
     voter: &Addr,
     voter_info: &VoterInfo,
 ) -> StdResult<()> {
-    POLL_VOTERS.save(storage, (poll_id.into(), voter), voter_info)
+    POLL_VOTER.save(storage, (poll_id.into(), voter), voter_info)
 }
 
-pub fn poll_voter_remove(storage: &mut dyn Storage, poll_id: u64, voter: &Addr) {
-    POLL_VOTERS.remove(storage, (poll_id.into(), voter))
+pub fn remove_poll_voter(storage: &mut dyn Storage, poll_id: u64, voter: &Addr) {
+    POLL_VOTER.remove(storage, (poll_id.into(), voter))
 }
 
-pub fn poll_voter_load(storage: &dyn Storage, poll_id: u64, voter: &Addr) -> StdResult<VoterInfo> {
-    POLL_VOTERS.load(storage, (poll_id.into(), voter))
+pub fn load_poll_voter(storage: &dyn Storage, poll_id: u64, voter: &Addr) -> StdResult<VoterInfo> {
+    POLL_VOTER.load(storage, (poll_id.into(), voter))
 }
 
 pub fn read_poll_voters(
@@ -197,7 +197,7 @@ pub fn read_poll_voters(
         ),
     };
 
-    POLL_VOTERS
+    POLL_VOTER
         .prefix(poll_id.into())
         .range(storage, start, end, order_by.into())
         .take(limit)
@@ -220,29 +220,30 @@ pub fn read_polls(
 ) -> StdResult<Vec<Poll>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let (start, end, order_by) = match order_by {
-        Some(OrderBy::Asc) => (calc_range_start_u64(start_after), None, OrderBy::Asc),
-        _ => (None, calc_range_end_u64(start_after), OrderBy::Desc),
+        Some(OrderBy::Asc) => (
+            calc_range_start_u64(start_after).map(Bound::exclusive),
+            None,
+            OrderBy::Asc,
+        ),
+        _ => (
+            None,
+            calc_range_end_u64(start_after).map(Bound::exclusive),
+            OrderBy::Desc,
+        ),
     };
 
     if let Some(status) = filter {
-        let poll_indexer: ReadonlyBucket<bool> = ReadonlyBucket::multilevel(
-            storage,
-            &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
-        );
-
-        poll_indexer
-            .range(start.as_deref(), end.as_deref(), order_by.into())
+        POLL_INDEXER
+            .prefix(status.to_string())
+            .range(storage, start, end, order_by.into())
             .take(limit)
             .map(|item| {
                 let (k, _) = item?;
-                load_poll_raw_key(storage, &k)
+                load_poll_internal(storage, k.into())
             })
             .collect()
     } else {
-        let polls: ReadonlyBucket<Poll> = ReadonlyBucket::new(storage, PREFIX_POLL);
-
-        polls
-            .range(start.as_deref(), end.as_deref(), order_by.into())
+        POLL.range(storage, start, end, order_by.into())
             .take(limit)
             .map(|item| {
                 let (_, v) = item?;
@@ -263,4 +264,105 @@ fn calc_range_start_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
 
 fn calc_range_end_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|id| id.to_be_bytes().to_vec())
+}
+
+#[cfg(test)]
+mod test {
+    use crate::state::VoterInfo;
+    use cosmwasm_std::testing::mock_dependencies;
+    use services::governance::VoteOption;
+
+    use super::*;
+    const LIMIT: usize = 30;
+    const ELEMENTS_IN_GROUP: usize = 100;
+    const POLLS_ID_COUNT: usize = 5;
+    const TOTAL_ELEMENTS_COUNT: usize = ELEMENTS_IN_GROUP * POLLS_ID_COUNT;
+
+    fn addr_from_i(i: usize) -> Addr {
+        Addr::unchecked(format!("addr{:0>8}", i))
+    }
+
+    fn voter_info_from_i(i: usize) -> VoterInfo {
+        VoterInfo {
+            balance: Uint128::from(i as u128),
+            vote: VoteOption::Yes,
+        }
+    }
+
+    fn poll_id_from_i(i: usize) -> u64 {
+        (i / ELEMENTS_IN_GROUP) as u64
+    }
+
+    #[test]
+    fn load_voter_info_with_range_start_works_as_expected() {
+        let mut deps = mock_dependencies(&[]);
+        for i in 0..TOTAL_ELEMENTS_COUNT {
+            let voter_addr = addr_from_i(i);
+            let voter_info = voter_info_from_i(i);
+            let poll_id = poll_id_from_i(i);
+            store_poll_voter(&mut deps.storage, poll_id, &voter_addr, &voter_info).unwrap();
+        }
+
+        let max_j = (ELEMENTS_IN_GROUP / LIMIT) + 1;
+        for poll_id in 0..POLLS_ID_COUNT {
+            for j in 0..max_j {
+                let start_after = if j == 0 {
+                    None
+                } else {
+                    Some(addr_from_i(j * LIMIT + poll_id * ELEMENTS_IN_GROUP - 1))
+                };
+
+                let voters_info = read_poll_voters(
+                    &deps.storage,
+                    poll_id as u64,
+                    start_after,
+                    Some(LIMIT as u32),
+                    Some(OrderBy::Asc),
+                )
+                .unwrap();
+
+                for (i, (addr, voters_info)) in voters_info.into_iter().enumerate() {
+                    let global_index = j * LIMIT + i + poll_id * ELEMENTS_IN_GROUP;
+                    assert_eq!(addr, addr_from_i(global_index));
+                    assert_eq!(voters_info.balance, Uint128::from(global_index as u128));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn load_voter_info_with_range_end_works_as_expected() {
+        let mut deps = mock_dependencies(&[]);
+        for i in 0..TOTAL_ELEMENTS_COUNT {
+            let voter_addr = addr_from_i(i);
+            let voter_info = voter_info_from_i(i);
+            let poll_id = poll_id_from_i(i);
+            store_poll_voter(&mut deps.storage, poll_id, &voter_addr, &voter_info).unwrap();
+        }
+
+        let max_j = (ELEMENTS_IN_GROUP / LIMIT) + 1;
+        for poll_id in 0..POLLS_ID_COUNT {
+            for j in 0..max_j {
+                let last_element_index_in_group = TOTAL_ELEMENTS_COUNT
+                    - j * LIMIT
+                    - ELEMENTS_IN_GROUP * (POLLS_ID_COUNT - poll_id - 1);
+                let end_before = Some(addr_from_i(last_element_index_in_group));
+
+                let voters_info = read_poll_voters(
+                    &deps.storage,
+                    poll_id as u64,
+                    end_before.clone(),
+                    Some(LIMIT as u32),
+                    Some(OrderBy::Desc),
+                )
+                .unwrap();
+
+                for (i, (addr, voters_info)) in voters_info.into_iter().enumerate() {
+                    let global_index = last_element_index_in_group - i - 1;
+                    assert_eq!(addr, addr_from_i(global_index));
+                    assert_eq!(voters_info.balance, Uint128::from(global_index as u128));
+                }
+            }
+        }
+    }
 }
