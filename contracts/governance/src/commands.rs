@@ -8,8 +8,8 @@ use crate::{
     querier::query_token_balance,
     state::{
         load_bank, load_config, load_poll, load_state, may_load_bank, poll_indexer_store,
-        poll_voter_read, poll_voter_store, store_bank, store_config, store_poll, store_state,
-        Config, ExecuteData, Poll, TokenManager,
+        poll_voter_load, poll_voter_remove, poll_voter_store, store_bank, store_config, store_poll,
+        store_state, Config, ExecuteData, Poll, TokenManager,
     },
     utils,
 };
@@ -397,11 +397,7 @@ pub fn cast_vote(
     }
 
     // Check the voter already has a vote on the poll
-    if poll_voter_read(deps.storage, poll_id)
-        //TODO: update cw-storage-plus to "0.7.0" and change this 'info.sender.as_bytes()'
-        .load(&info.sender.to_string().as_bytes())
-        .is_ok()
-    {
+    if poll_voter_load(deps.storage, poll_id, &info.sender).is_ok() {
         return Err(StdError::generic_err("User has already voted."));
     }
 
@@ -439,7 +435,7 @@ pub fn cast_vote(
     store_bank(deps.storage, &info.sender, &token_manager)?;
 
     // store poll voter && and update poll data
-    poll_voter_store(deps.storage, poll_id).save(&info.sender.as_bytes(), &vote_info)?;
+    poll_voter_store(deps.storage, poll_id, &info.sender, &vote_info)?;
 
     // processing snapshot
     let time_to_end = a_poll.end_height - env.block.height;
@@ -547,7 +543,7 @@ fn compute_locked_balance(
 
         if poll.status != PollStatus::InProgress {
             // remove voter info from the poll
-            poll_voter_store(storage, *poll_id).remove(&voter.to_string().as_bytes());
+            poll_voter_remove(storage, *poll_id, &voter);
         }
 
         poll.status == PollStatus::InProgress

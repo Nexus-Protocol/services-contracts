@@ -1,20 +1,23 @@
-use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket};
+use cosmwasm_storage::{bucket, bucket_read, Bucket, ReadonlyBucket};
+use cw_storage_plus::{Bound, Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Binary, Decimal, StdResult, Storage, Uint128};
+use cw0::{calc_range_end, calc_range_start};
 use services::common::OrderBy;
 use services::governance::{PollStatus, VoterInfo};
 use std::cmp::Ordering;
 
-static KEY_CONFIG: &[u8] = b"config";
-static KEY_STATE: &[u8] = b"state";
+static KEY_CONFIG: Item<Config> = Item::new("config");
+static KEY_STATE: Item<State> = Item::new("state");
+static BANKS: Map<&Addr, TokenManager> = Map::new("bank");
 
+// static POLLS: Map<&u64, Poll> = Map::new("poll");
 static PREFIX_POLL: &[u8] = b"poll";
-static PREFIX_BANK: &[u8] = b"bank";
-
 static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
-static PREFIX_POLL_VOTER: &[u8] = b"poll_voter";
+
+static POLL_VOTERS: Map<(U64Key, &Addr), VoterInfo> = Map::new("poll_voter");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -97,19 +100,19 @@ impl PartialEq for ExecuteData {
 }
 
 pub fn load_config(storage: &dyn Storage) -> StdResult<Config> {
-    singleton_read(storage, KEY_CONFIG).load()
+    KEY_CONFIG.load(storage)
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
-    singleton(storage, KEY_CONFIG).save(config)
+    KEY_CONFIG.save(storage, config)
 }
 
 pub fn load_state(storage: &dyn Storage) -> StdResult<State> {
-    singleton_read(storage, KEY_STATE).load()
+    KEY_STATE.load(storage)
 }
 
 pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
-    singleton(storage, KEY_STATE).save(state)
+    KEY_STATE.save(storage, state)
 }
 
 pub fn load_poll(storage: &dyn Storage, poll_id: &u64) -> StdResult<Poll> {
@@ -128,8 +131,10 @@ pub fn store_poll(storage: &mut dyn Storage, poll_id: &u64, poll: &Poll) -> StdR
     bucket(storage, PREFIX_POLL).save(&poll_id.to_be_bytes(), poll)
 }
 
+//==========================
+
 pub fn may_load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<Option<TokenManager>> {
-    bucket_read(storage, PREFIX_BANK).may_load(addr.as_bytes())
+    BANKS.may_load(storage, addr)
 }
 
 pub fn load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<TokenManager> {
@@ -141,7 +146,7 @@ pub fn store_bank(
     addr: &Addr,
     token_manager: &TokenManager,
 ) -> StdResult<()> {
-    bucket(storage, PREFIX_BANK).save(addr.as_bytes(), token_manager)
+    BANKS.save(storage, addr, token_manager)
 }
 
 pub fn poll_indexer_store<'a>(
@@ -154,12 +159,21 @@ pub fn poll_indexer_store<'a>(
     )
 }
 
-pub fn poll_voter_store(storage: &mut dyn Storage, poll_id: u64) -> Bucket<VoterInfo> {
-    Bucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
+pub fn poll_voter_store(
+    storage: &mut dyn Storage,
+    poll_id: u64,
+    voter: &Addr,
+    voter_info: &VoterInfo,
+) -> StdResult<()> {
+    POLL_VOTERS.save(storage, (poll_id.into(), voter), voter_info)
 }
 
-pub fn poll_voter_read(storage: &dyn Storage, poll_id: u64) -> ReadonlyBucket<VoterInfo> {
-    ReadonlyBucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
+pub fn poll_voter_remove(storage: &mut dyn Storage, poll_id: u64, voter: &Addr) {
+    POLL_VOTERS.remove(storage, (poll_id.into(), voter))
+}
+
+pub fn poll_voter_load(storage: &dyn Storage, poll_id: u64, voter: &Addr) -> StdResult<VoterInfo> {
+    POLL_VOTERS.load(storage, (poll_id.into(), voter))
 }
 
 pub fn read_poll_voters(
@@ -171,15 +185,21 @@ pub fn read_poll_voters(
 ) -> StdResult<Vec<(Addr, VoterInfo)>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let (start, end, order_by) = match order_by {
-        Some(OrderBy::Asc) => (calc_range_start_addr(start_after), None, OrderBy::Asc),
-        _ => (None, calc_range_end_addr(start_after), OrderBy::Desc),
+        Some(OrderBy::Asc) => (
+            calc_range_start(start_after).map(Bound::exclusive),
+            None,
+            OrderBy::Asc,
+        ),
+        _ => (
+            None,
+            calc_range_end(start_after).map(Bound::exclusive),
+            OrderBy::Desc,
+        ),
     };
 
-    let voters: ReadonlyBucket<VoterInfo> =
-        ReadonlyBucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()]);
-
-    voters
-        .range(start.as_deref(), end.as_deref(), order_by.into())
+    POLL_VOTERS
+        .prefix(poll_id.into())
+        .range(storage, start, end, order_by.into())
         .take(limit)
         .map(|item| {
             let (k, v) = item?;
@@ -200,8 +220,8 @@ pub fn read_polls(
 ) -> StdResult<Vec<Poll>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let (start, end, order_by) = match order_by {
-        Some(OrderBy::Asc) => (calc_range_start(start_after), None, OrderBy::Asc),
-        _ => (None, calc_range_end(start_after), OrderBy::Desc),
+        Some(OrderBy::Asc) => (calc_range_start_u64(start_after), None, OrderBy::Asc),
+        _ => (None, calc_range_end_u64(start_after), OrderBy::Desc),
     };
 
     if let Some(status) = filter {
@@ -232,8 +252,8 @@ pub fn read_polls(
     }
 }
 
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_start(start_after: Option<u64>) -> Option<Vec<u8>> {
+// this will set the first key after the provided key, by appending a 0 byte
+fn calc_range_start_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|id| {
         let mut v = id.to_be_bytes().to_vec();
         v.push(0);
@@ -241,21 +261,6 @@ fn calc_range_start(start_after: Option<u64>) -> Option<Vec<u8>> {
     })
 }
 
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_end(start_after: Option<u64>) -> Option<Vec<u8>> {
+fn calc_range_end_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|id| id.to_be_bytes().to_vec())
-}
-
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_start_addr(start_after: Option<Addr>) -> Option<Vec<u8>> {
-    start_after.map(|addr| {
-        let mut v: Vec<u8> = addr.as_ref().into();
-        v.push(0);
-        v
-    })
-}
-
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_end_addr(start_after: Option<Addr>) -> Option<Vec<u8>> {
-    start_after.map(|addr| addr.as_ref().into())
 }
