@@ -253,6 +253,11 @@ pub fn migrate_staking(
     new_staking_contract: String,
 ) -> StdResult<Response> {
     let mut config: Config = read_config(deps.storage)?;
+    let mut state: State = read_state(deps.storage)?;
+
+    let current_time = get_time(&env.block);
+    // compute global reward, sets last_distributed to current_time
+    compute_reward(&config, &mut state, current_time);
 
     let total_distribution_amount: Uint128 = config
         .distribution_schedule
@@ -289,6 +294,8 @@ pub fn migrate_staking(
 
     // update config
     store_config(deps.storage, &config)?;
+    // update state
+    store_state(deps.storage, &state)?;
 
     let remaining_psi = total_distribution_amount.checked_sub(distributed_amount)?;
 
