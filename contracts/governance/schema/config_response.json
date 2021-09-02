@@ -3,7 +3,6 @@
   "title": "ConfigResponse",
   "type": "object",
   "required": [
-    "expiration_period",
     "owner",
     "proposal_deposit",
     "psi_token",
@@ -14,11 +13,6 @@
     "voting_period"
   ],
   "properties": {
-    "expiration_period": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
     "owner": {
       "type": "string"
     },

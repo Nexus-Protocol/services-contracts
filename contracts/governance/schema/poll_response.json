@@ -114,7 +114,7 @@
         "passed",
         "rejected",
         "executed",
-        "expired"
+        "failed"
       ]
     },
     "Uint128": {
