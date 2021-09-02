@@ -123,28 +123,6 @@
     {
       "type": "object",
       "required": [
-        "expire_poll"
-      ],
-      "properties": {
-        "expire_poll": {
-          "type": "object",
-          "required": [
-            "poll_id"
-          ],
-          "properties": {
-            "poll_id": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "snapshot_poll"
       ],
       "properties": {

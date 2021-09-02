@@ -7,6 +7,6 @@
     "passed",
     "rejected",
     "executed",
-    "expired"
+    "failed"
   ]
 }
