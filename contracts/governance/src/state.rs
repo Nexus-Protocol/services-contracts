@@ -1,20 +1,23 @@
-use cosmwasm_storage::{bucket, bucket_read, singleton, singleton_read, Bucket, ReadonlyBucket};
+use cw_storage_plus::{Bound, Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Binary, Decimal, StdResult, Storage, Uint128};
+use cw0::{calc_range_end, calc_range_start};
 use services::common::OrderBy;
 use services::governance::{PollStatus, VoterInfo};
 use std::cmp::Ordering;
 
-static KEY_CONFIG: &[u8] = b"config";
-static KEY_STATE: &[u8] = b"state";
+static KEY_CONFIG: Item<Config> = Item::new("config");
+static KEY_STATE: Item<State> = Item::new("state");
+static BANK: Map<&Addr, TokenManager> = Map::new("bank");
 
-static PREFIX_POLL: &[u8] = b"poll";
-static PREFIX_BANK: &[u8] = b"bank";
+static POLL: Map<U64Key, Poll> = Map::new("poll");
+//key: poll_status.to_string + poll_id
+static POLL_INDEXER: Map<(String, U64Key), bool> = Map::new("poll_indexer");
 
-static PREFIX_POLL_INDEXER: &[u8] = b"poll_indexer";
-static PREFIX_POLL_VOTER: &[u8] = b"poll_voter";
+//key: poll_id + poll_voter_addr
+static POLL_VOTER: Map<(U64Key, &Addr), VoterInfo> = Map::new("poll_voter");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -97,39 +100,39 @@ impl PartialEq for ExecuteData {
 }
 
 pub fn load_config(storage: &dyn Storage) -> StdResult<Config> {
-    singleton_read(storage, KEY_CONFIG).load()
+    KEY_CONFIG.load(storage)
 }
 
 pub fn store_config(storage: &mut dyn Storage, config: &Config) -> StdResult<()> {
-    singleton(storage, KEY_CONFIG).save(config)
+    KEY_CONFIG.save(storage, config)
 }
 
 pub fn load_state(storage: &dyn Storage) -> StdResult<State> {
-    singleton_read(storage, KEY_STATE).load()
+    KEY_STATE.load(storage)
 }
 
 pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
-    singleton(storage, KEY_STATE).save(state)
+    KEY_STATE.save(storage, state)
 }
 
-pub fn load_poll(storage: &dyn Storage, poll_id: &u64) -> StdResult<Poll> {
-    bucket_read(storage, PREFIX_POLL).load(&poll_id.to_be_bytes())
+pub fn load_poll(storage: &dyn Storage, poll_id: u64) -> StdResult<Poll> {
+    load_poll_internal(storage, poll_id.into())
 }
 
-pub fn load_poll_raw_key(storage: &dyn Storage, key: &[u8]) -> StdResult<Poll> {
-    bucket_read(storage, PREFIX_POLL).load(key)
+pub fn load_poll_internal(storage: &dyn Storage, poll_id: U64Key) -> StdResult<Poll> {
+    POLL.load(storage, poll_id)
 }
 
-pub fn may_load_poll(storage: &dyn Storage, poll_id: &u64) -> StdResult<Option<Poll>> {
-    bucket_read(storage, PREFIX_POLL).may_load(&poll_id.to_be_bytes())
+pub fn may_load_poll(storage: &dyn Storage, poll_id: u64) -> StdResult<Option<Poll>> {
+    POLL.may_load(storage, poll_id.into())
 }
 
-pub fn store_poll(storage: &mut dyn Storage, poll_id: &u64, poll: &Poll) -> StdResult<()> {
-    bucket(storage, PREFIX_POLL).save(&poll_id.to_be_bytes(), poll)
+pub fn store_poll(storage: &mut dyn Storage, poll_id: u64, poll: &Poll) -> StdResult<()> {
+    POLL.save(storage, poll_id.into(), poll)
 }
 
 pub fn may_load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<Option<TokenManager>> {
-    bucket_read(storage, PREFIX_BANK).may_load(addr.as_bytes())
+    BANK.may_load(storage, addr)
 }
 
 pub fn load_bank(storage: &dyn Storage, addr: &Addr) -> StdResult<TokenManager> {
@@ -141,25 +144,36 @@ pub fn store_bank(
     addr: &Addr,
     token_manager: &TokenManager,
 ) -> StdResult<()> {
-    bucket(storage, PREFIX_BANK).save(addr.as_bytes(), token_manager)
+    BANK.save(storage, addr, token_manager)
 }
 
-pub fn poll_indexer_store<'a>(
-    storage: &'a mut dyn Storage,
+pub fn store_poll_indexer(
+    storage: &mut dyn Storage,
     status: &PollStatus,
-) -> Bucket<'a, bool> {
-    Bucket::multilevel(
-        storage,
-        &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
-    )
+    poll_id: u64,
+) -> StdResult<()> {
+    POLL_INDEXER.save(storage, (status.to_string(), poll_id.into()), &true)
 }
 
-pub fn poll_voter_store(storage: &mut dyn Storage, poll_id: u64) -> Bucket<VoterInfo> {
-    Bucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
+pub fn remove_poll_indexer(storage: &mut dyn Storage, status: &PollStatus, poll_id: u64) {
+    POLL_INDEXER.remove(storage, (status.to_string(), poll_id.into()))
 }
 
-pub fn poll_voter_read(storage: &dyn Storage, poll_id: u64) -> ReadonlyBucket<VoterInfo> {
-    ReadonlyBucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()])
+pub fn store_poll_voter(
+    storage: &mut dyn Storage,
+    poll_id: u64,
+    voter: &Addr,
+    voter_info: &VoterInfo,
+) -> StdResult<()> {
+    POLL_VOTER.save(storage, (poll_id.into(), voter), voter_info)
+}
+
+pub fn remove_poll_voter(storage: &mut dyn Storage, poll_id: u64, voter: &Addr) {
+    POLL_VOTER.remove(storage, (poll_id.into(), voter))
+}
+
+pub fn load_poll_voter(storage: &dyn Storage, poll_id: u64, voter: &Addr) -> StdResult<VoterInfo> {
+    POLL_VOTER.load(storage, (poll_id.into(), voter))
 }
 
 pub fn read_poll_voters(
@@ -171,15 +185,21 @@ pub fn read_poll_voters(
 ) -> StdResult<Vec<(Addr, VoterInfo)>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let (start, end, order_by) = match order_by {
-        Some(OrderBy::Asc) => (calc_range_start_addr(start_after), None, OrderBy::Asc),
-        _ => (None, calc_range_end_addr(start_after), OrderBy::Desc),
+        Some(OrderBy::Asc) => (
+            calc_range_start(start_after).map(Bound::exclusive),
+            None,
+            OrderBy::Asc,
+        ),
+        _ => (
+            None,
+            calc_range_end(start_after).map(Bound::exclusive),
+            OrderBy::Desc,
+        ),
     };
 
-    let voters: ReadonlyBucket<VoterInfo> =
-        ReadonlyBucket::multilevel(storage, &[PREFIX_POLL_VOTER, &poll_id.to_be_bytes()]);
-
-    voters
-        .range(start.as_deref(), end.as_deref(), order_by.into())
+    POLL_VOTER
+        .prefix(poll_id.into())
+        .range(storage, start, end, order_by.into())
         .take(limit)
         .map(|item| {
             let (k, v) = item?;
@@ -200,29 +220,30 @@ pub fn read_polls(
 ) -> StdResult<Vec<Poll>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let (start, end, order_by) = match order_by {
-        Some(OrderBy::Asc) => (calc_range_start(start_after), None, OrderBy::Asc),
-        _ => (None, calc_range_end(start_after), OrderBy::Desc),
+        Some(OrderBy::Asc) => (
+            calc_range_start_u64(start_after).map(Bound::exclusive),
+            None,
+            OrderBy::Asc,
+        ),
+        _ => (
+            None,
+            calc_range_end_u64(start_after).map(Bound::exclusive),
+            OrderBy::Desc,
+        ),
     };
 
     if let Some(status) = filter {
-        let poll_indexer: ReadonlyBucket<bool> = ReadonlyBucket::multilevel(
-            storage,
-            &[PREFIX_POLL_INDEXER, status.to_string().as_bytes()],
-        );
-
-        poll_indexer
-            .range(start.as_deref(), end.as_deref(), order_by.into())
+        POLL_INDEXER
+            .prefix(status.to_string())
+            .range(storage, start, end, order_by.into())
             .take(limit)
             .map(|item| {
                 let (k, _) = item?;
-                load_poll_raw_key(storage, &k)
+                load_poll_internal(storage, k.into())
             })
             .collect()
     } else {
-        let polls: ReadonlyBucket<Poll> = ReadonlyBucket::new(storage, PREFIX_POLL);
-
-        polls
-            .range(start.as_deref(), end.as_deref(), order_by.into())
+        POLL.range(storage, start, end, order_by.into())
             .take(limit)
             .map(|item| {
                 let (_, v) = item?;
@@ -232,8 +253,8 @@ pub fn read_polls(
     }
 }
 
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_start(start_after: Option<u64>) -> Option<Vec<u8>> {
+// this will set the first key after the provided key, by appending a 0 byte
+fn calc_range_start_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|id| {
         let mut v = id.to_be_bytes().to_vec();
         v.push(0);
@@ -241,21 +262,423 @@ fn calc_range_start(start_after: Option<u64>) -> Option<Vec<u8>> {
     })
 }
 
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_end(start_after: Option<u64>) -> Option<Vec<u8>> {
+fn calc_range_end_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|id| id.to_be_bytes().to_vec())
 }
 
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_start_addr(start_after: Option<Addr>) -> Option<Vec<u8>> {
-    start_after.map(|addr| {
-        let mut v: Vec<u8> = addr.as_ref().into();
-        v.push(0);
-        v
-    })
-}
+#[cfg(test)]
+mod test {
+    use crate::state::VoterInfo;
+    use cosmwasm_std::testing::mock_dependencies;
+    use services::governance::VoteOption;
 
-// this will set the first key after the provided key, by appending a 1 byte
-fn calc_range_end_addr(start_after: Option<Addr>) -> Option<Vec<u8>> {
-    start_after.map(|addr| addr.as_ref().into())
+    use super::*;
+    const LIMIT: usize = 30;
+    const ELEMENTS_IN_GROUP: usize = 100;
+    const POLLS_ID_COUNT: usize = 5;
+    const TOTAL_ELEMENTS_COUNT: usize = ELEMENTS_IN_GROUP * POLLS_ID_COUNT;
+
+    impl Default for Poll {
+        fn default() -> Self {
+            Poll {
+                id: 0u64,
+                creator: Addr::unchecked(""),
+                status: PollStatus::Expired,
+                yes_votes: Uint128::zero(),
+                no_votes: Uint128::zero(),
+                end_height: 0u64,
+                title: String::default(),
+                description: String::default(),
+                link: None,
+                execute_data: None,
+                deposit_amount: Uint128::zero(),
+                total_balance_at_end_poll: None,
+                staked_amount: None,
+            }
+        }
+    }
+
+    fn addr_from_i(i: usize) -> Addr {
+        Addr::unchecked(format!("addr{:0>8}", i))
+    }
+
+    fn voter_info_from_i(i: usize) -> VoterInfo {
+        VoterInfo {
+            balance: Uint128::from(i as u128),
+            vote: VoteOption::Yes,
+        }
+    }
+
+    fn poll_from_i(i: usize) -> Poll {
+        Poll {
+            id: i as u64,
+            ..Poll::default()
+        }
+    }
+
+    fn poll_id_from_i(i: usize) -> u64 {
+        (i / ELEMENTS_IN_GROUP) as u64
+    }
+
+    #[test]
+    fn load_voter_info_with_range_start_works_as_expected() {
+        let mut deps = mock_dependencies(&[]);
+        for i in 0..TOTAL_ELEMENTS_COUNT {
+            let voter_addr = addr_from_i(i);
+            let voter_info = voter_info_from_i(i);
+            let poll_id = poll_id_from_i(i);
+            store_poll_voter(&mut deps.storage, poll_id, &voter_addr, &voter_info).unwrap();
+        }
+
+        let max_j = (ELEMENTS_IN_GROUP / LIMIT) + 1;
+        for poll_id in 0..POLLS_ID_COUNT {
+            for j in 0..max_j {
+                let first_element_index_in_group = j * LIMIT + poll_id * ELEMENTS_IN_GROUP;
+                let start_after = if j == 0 {
+                    None
+                } else {
+                    Some(addr_from_i(first_element_index_in_group - 1))
+                };
+
+                let voters_info = read_poll_voters(
+                    &deps.storage,
+                    poll_id as u64,
+                    start_after,
+                    Some(LIMIT as u32),
+                    Some(OrderBy::Asc),
+                )
+                .unwrap();
+
+                for (i, (addr, voters_info)) in voters_info.into_iter().enumerate() {
+                    let global_index = first_element_index_in_group + i;
+                    assert_eq!(addr, addr_from_i(global_index));
+                    assert_eq!(voters_info.balance, Uint128::from(global_index as u128));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn load_voter_info_with_range_end_works_as_expected() {
+        let mut deps = mock_dependencies(&[]);
+        for i in 0..TOTAL_ELEMENTS_COUNT {
+            let voter_addr = addr_from_i(i);
+            let voter_info = voter_info_from_i(i);
+            let poll_id = poll_id_from_i(i);
+            store_poll_voter(&mut deps.storage, poll_id, &voter_addr, &voter_info).unwrap();
+        }
+
+        let max_j = (ELEMENTS_IN_GROUP / LIMIT) + 1;
+        for poll_id in 0..POLLS_ID_COUNT {
+            for j in 0..max_j {
+                let last_element_index_in_group = TOTAL_ELEMENTS_COUNT
+                    - j * LIMIT
+                    - ELEMENTS_IN_GROUP * (POLLS_ID_COUNT - poll_id - 1);
+                let end_before = Some(addr_from_i(last_element_index_in_group));
+
+                let voters_info = read_poll_voters(
+                    &deps.storage,
+                    poll_id as u64,
+                    end_before.clone(),
+                    Some(LIMIT as u32),
+                    Some(OrderBy::Desc),
+                )
+                .unwrap();
+
+                for (i, (addr, voters_info)) in voters_info.into_iter().enumerate() {
+                    let global_index = last_element_index_in_group - i - 1;
+                    assert_eq!(addr, addr_from_i(global_index));
+                    assert_eq!(voters_info.balance, Uint128::from(global_index as u128));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn load_polls_with_range_start_works_as_expected() {
+        let total_elements_count = 100;
+        let mut deps = mock_dependencies(&[]);
+        for i in 0..total_elements_count {
+            let poll_id = i as u64;
+            let poll = poll_from_i(i);
+            store_poll(&mut deps.storage, poll_id, &poll).unwrap();
+        }
+
+        for j in 0..4 {
+            let first_element_index = j * LIMIT;
+            let start_after: Option<u64> = if j == 0 {
+                None
+            } else {
+                Some((first_element_index - 1) as u64)
+            };
+
+            let polls = read_polls(
+                &deps.storage,
+                None,
+                start_after,
+                Some(LIMIT as u32),
+                Some(OrderBy::Asc),
+            )
+            .unwrap();
+
+            for (i, poll) in polls.into_iter().enumerate() {
+                let global_index = (first_element_index + i) as u64;
+                assert_eq!(poll.id, global_index);
+            }
+        }
+    }
+
+    #[test]
+    fn load_polls_with_range_end_works_as_expected() {
+        let total_elements_count = 100;
+        let mut deps = mock_dependencies(&[]);
+        for i in 0..total_elements_count {
+            let poll_id = i as u64;
+            let poll = poll_from_i(i);
+            store_poll(&mut deps.storage, poll_id, &poll).unwrap();
+        }
+
+        for j in 0..4 {
+            let last_element_index = total_elements_count - j * LIMIT;
+            let end_before = Some(last_element_index as u64);
+
+            let polls = read_polls(
+                &deps.storage,
+                None,
+                end_before,
+                Some(LIMIT as u32),
+                Some(OrderBy::Desc),
+            )
+            .unwrap();
+
+            for (i, poll) in polls.into_iter().enumerate() {
+                let global_index = (last_element_index - i - 1) as u64;
+                assert_eq!(poll.id, global_index);
+            }
+        }
+    }
+
+    fn create_and_save_poll(storage: &mut dyn Storage, poll_id: usize, poll_status: PollStatus) {
+        let mut poll = poll_from_i(poll_id);
+        poll.status = poll_status;
+        store_poll(storage, poll_id as u64, &poll).unwrap();
+        store_poll_indexer(storage, &poll.status, poll_id as u64).unwrap();
+    }
+
+    #[test]
+    fn load_polls_with_filter_by_status_range_start_works_as_expected() {
+        let mut deps = mock_dependencies(&[]);
+        let executed_ids: Vec<usize> = (0..30).filter(|elem| elem % 3 == 0).collect();
+        let passed_ids: Vec<usize> = executed_ids.iter().map(|x| x + 1).collect();
+        let rejected_ids: Vec<usize> = executed_ids.iter().map(|x| x + 2).collect();
+
+        for i in passed_ids.iter() {
+            create_and_save_poll(&mut deps.storage, *i, PollStatus::Passed);
+        }
+
+        for i in executed_ids.iter() {
+            create_and_save_poll(&mut deps.storage, *i, PollStatus::Executed);
+        }
+
+        for i in rejected_ids.iter() {
+            create_and_save_poll(&mut deps.storage, *i, PollStatus::Rejected);
+        }
+
+        let local_limit = 5;
+
+        // get Executed polls
+        {
+            let local_status = PollStatus::Executed;
+            let start_after_on_step_2 = 12;
+            for j in 0..2 {
+                let start_after: Option<u64> = if j == 0 {
+                    None
+                } else {
+                    Some(start_after_on_step_2)
+                };
+
+                let polls = read_polls(
+                    &deps.storage,
+                    Some(local_status.clone()),
+                    start_after,
+                    Some(local_limit as u32),
+                    Some(OrderBy::Asc),
+                )
+                .unwrap();
+
+                for (i, poll) in polls.into_iter().enumerate() {
+                    let expected_id = executed_ids[i + (j * local_limit)];
+                    assert_eq!(poll.status, local_status);
+                    assert_eq!(poll.id, expected_id as u64);
+                }
+            }
+        }
+
+        // get Passed polls
+        {
+            let local_status = PollStatus::Passed;
+            let start_after_on_step_2 = 13;
+            for j in 0..2 {
+                let start_after: Option<u64> = if j == 0 {
+                    None
+                } else {
+                    Some(start_after_on_step_2)
+                };
+
+                let polls = read_polls(
+                    &deps.storage,
+                    Some(local_status.clone()),
+                    start_after,
+                    Some(local_limit as u32),
+                    Some(OrderBy::Asc),
+                )
+                .unwrap();
+
+                for (i, poll) in polls.into_iter().enumerate() {
+                    let expected_id = passed_ids[i + (j * local_limit)];
+                    assert_eq!(poll.status, local_status);
+                    assert_eq!(poll.id, expected_id as u64);
+                }
+            }
+        }
+
+        // get Rejected polls
+        {
+            let local_status = PollStatus::Rejected;
+            let start_after_on_step_2 = 14;
+            for j in 0..2 {
+                let start_after: Option<u64> = if j == 0 {
+                    None
+                } else {
+                    Some(start_after_on_step_2)
+                };
+
+                let polls = read_polls(
+                    &deps.storage,
+                    Some(local_status.clone()),
+                    start_after,
+                    Some(local_limit as u32),
+                    Some(OrderBy::Asc),
+                )
+                .unwrap();
+
+                for (i, poll) in polls.into_iter().enumerate() {
+                    let expected_id = rejected_ids[i + (j * local_limit)];
+                    assert_eq!(poll.status, local_status);
+                    assert_eq!(poll.id, expected_id as u64);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn load_polls_with_filter_by_status_range_end_works_as_expected() {
+        let mut deps = mock_dependencies(&[]);
+        let elems_count_in_group = 10;
+        let executed_ids: Vec<usize> = (0..(elems_count_in_group * 3))
+            .filter(|elem| elem % 3 == 0)
+            .collect();
+        let passed_ids: Vec<usize> = executed_ids.iter().map(|x| x + 1).collect();
+        let rejected_ids: Vec<usize> = executed_ids.iter().map(|x| x + 2).collect();
+
+        for i in passed_ids.iter() {
+            create_and_save_poll(&mut deps.storage, *i, PollStatus::Passed);
+        }
+
+        for i in executed_ids.iter() {
+            create_and_save_poll(&mut deps.storage, *i, PollStatus::Executed);
+        }
+
+        for i in rejected_ids.iter() {
+            create_and_save_poll(&mut deps.storage, *i, PollStatus::Rejected);
+        }
+
+        let local_limit = 5;
+
+        // get Executed polls
+        {
+            let local_status = PollStatus::Executed;
+            let end_before_on_step_2 = 15;
+            for j in 0..2 {
+                let end_before: Option<u64> = if j == 0 {
+                    None
+                } else {
+                    Some(end_before_on_step_2)
+                };
+
+                let polls = read_polls(
+                    &deps.storage,
+                    Some(local_status.clone()),
+                    end_before,
+                    Some(local_limit as u32),
+                    Some(OrderBy::Desc),
+                )
+                .unwrap();
+
+                for (i, poll) in polls.into_iter().enumerate() {
+                    let expected_id =
+                        executed_ids[elems_count_in_group - i - (j * local_limit) - 1];
+                    assert_eq!(poll.status, local_status);
+                    assert_eq!(poll.id, expected_id as u64);
+                }
+            }
+        }
+
+        // get Passed polls
+        {
+            let local_status = PollStatus::Passed;
+            let end_before_on_step_2 = 16;
+            for j in 0..2 {
+                let end_before: Option<u64> = if j == 0 {
+                    None
+                } else {
+                    Some(end_before_on_step_2)
+                };
+
+                let polls = read_polls(
+                    &deps.storage,
+                    Some(local_status.clone()),
+                    end_before,
+                    Some(local_limit as u32),
+                    Some(OrderBy::Desc),
+                )
+                .unwrap();
+
+                for (i, poll) in polls.into_iter().enumerate() {
+                    let expected_id = passed_ids[elems_count_in_group - i - (j * local_limit) - 1];
+                    assert_eq!(poll.status, local_status);
+                    assert_eq!(poll.id, expected_id as u64);
+                }
+            }
+        }
+
+        // get Rejected polls
+        {
+            let local_status = PollStatus::Rejected;
+            let end_before_on_step_2 = 17;
+            for j in 0..2 {
+                let end_before: Option<u64> = if j == 0 {
+                    None
+                } else {
+                    Some(end_before_on_step_2)
+                };
+
+                let polls = read_polls(
+                    &deps.storage,
+                    Some(local_status.clone()),
+                    end_before,
+                    Some(local_limit as u32),
+                    Some(OrderBy::Desc),
+                )
+                .unwrap();
+
+                for (i, poll) in polls.into_iter().enumerate() {
+                    let expected_id =
+                        rejected_ids[elems_count_in_group - i - (j * local_limit) - 1];
+                    assert_eq!(poll.status, local_status);
+                    assert_eq!(poll.id, expected_id as u64);
+                }
+            }
+        }
+    }
 }

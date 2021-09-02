@@ -1,6 +1,6 @@
 use crate::contract::{execute, instantiate, query};
 use crate::state::{
-    load_bank, load_config, load_state, poll_voter_read, poll_voter_store, store_bank, store_poll,
+    load_bank, load_config, load_poll_voter, load_state, store_bank, store_poll, store_poll_voter,
     Config, Poll, State, TokenManager,
 };
 use crate::tests::mock_querier::{mock_dependencies, WasmMockQuerier};
@@ -893,9 +893,7 @@ fn happy_days_end_poll() {
     );
 
     // But the data is still in the store
-    let voter = poll_voter_read(deps.as_ref().storage, 1u64)
-        .load(TEST_VOTER.as_bytes())
-        .unwrap();
+    let voter = load_poll_voter(deps.as_ref().storage, 1u64, &Addr::unchecked(TEST_VOTER)).unwrap();
     assert_eq!(
         voter,
         VoterInfo {
@@ -1813,7 +1811,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
     // make fake polls; one in progress & one in passed
     store_poll(
         deps.as_mut().storage,
-        &1u64,
+        1u64,
         &Poll {
             id: 1u64,
             creator: Addr::unchecked(""),
@@ -1834,7 +1832,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
 
     store_poll(
         deps.as_mut().storage,
-        &2u64,
+        2u64,
         &Poll {
             id: 1u64,
             creator: Addr::unchecked(""),
@@ -1854,25 +1852,27 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
     .unwrap();
 
     let voter_addr = Addr::unchecked(TEST_VOTER);
-    let voter_addr_raw = voter_addr.to_string().into_bytes();
-    poll_voter_store(&mut deps.storage, 1u64)
-        .save(
-            &voter_addr_raw,
-            &VoterInfo {
-                vote: VoteOption::Yes,
-                balance: Uint128::new(5u128),
-            },
-        )
-        .unwrap();
-    poll_voter_store(deps.as_mut().storage, 2u64)
-        .save(
-            &voter_addr_raw,
-            &VoterInfo {
-                vote: VoteOption::Yes,
-                balance: Uint128::new(5u128),
-            },
-        )
-        .unwrap();
+    store_poll_voter(
+        &mut deps.storage,
+        1u64,
+        &voter_addr,
+        &VoterInfo {
+            vote: VoteOption::Yes,
+            balance: Uint128::new(5u128),
+        },
+    )
+    .unwrap();
+    store_poll_voter(
+        deps.as_mut().storage,
+        2u64,
+        &voter_addr,
+        &VoterInfo {
+            vote: VoteOption::Yes,
+            balance: Uint128::new(5u128),
+        },
+    )
+    .unwrap();
+
     store_bank(
         deps.as_mut().storage,
         &voter_addr,
@@ -1908,9 +1908,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
     };
 
     execute(deps.as_mut(), env, info, msg).unwrap();
-    let voter = poll_voter_read(&deps.storage, 1u64)
-        .load(&voter_addr_raw)
-        .unwrap();
+    let voter = load_poll_voter(&deps.storage, 1u64, &voter_addr).unwrap();
     assert_eq!(
         voter,
         VoterInfo {
@@ -1918,12 +1916,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             balance: Uint128::new(5u128),
         }
     );
-    assert_eq!(
-        poll_voter_read(&deps.storage, 2u64)
-            .load(&voter_addr_raw)
-            .is_err(),
-        true
-    );
+    assert!(load_poll_voter(&deps.storage, 2u64, &voter_addr).is_err());
 
     let token_manager = load_bank(deps.as_ref().storage, &voter_addr).unwrap();
     assert_eq!(
