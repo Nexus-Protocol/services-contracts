@@ -2,7 +2,9 @@ use cosmwasm_std::{
     to_binary, Addr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
     Storage, SubMsg, Uint128, WasmMsg,
 };
-use services::governance::{PollExecuteMsg, PollStatus, VoteOption, VoterInfo};
+use services::governance::{
+    ExecuteMsg, PollExecuteMsg, PollStatus, VoteOption, VoterInfo, YourselfMsg,
+};
 
 use crate::{
     querier::query_token_balance,
@@ -23,7 +25,6 @@ pub fn update_config(
     threshold: Option<Decimal>,
     voting_period: Option<u64>,
     timelock_period: Option<u64>,
-    expiration_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
     snapshot_period: Option<u64>,
 ) -> StdResult<Response> {
@@ -45,10 +46,6 @@ pub fn update_config(
 
     if let Some(timelock_period) = timelock_period {
         current_config.timelock_period = timelock_period;
-    }
-
-    if let Some(expiration_period) = expiration_period {
-        current_config.expiration_period = expiration_period;
     }
 
     if let Some(proposal_deposit) = proposal_deposit {
@@ -268,6 +265,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
         ]))
 }
 
+/// Execute a msgs of passed poll as one submsg to catch failures
 pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let config: Config = load_config(deps.storage)?;
     let mut a_poll = load_poll(deps.storage, poll_id)?;
@@ -280,62 +278,67 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
         return Err(StdError::generic_err("Timelock period has not expired"));
     }
 
+    Ok(Response::new().add_submessage(SubMsg::reply_always(
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::Yourself {
+                yourself_msg: YourselfMsg::ExecutePollMsgs { poll_id },
+            })?,
+            funds: vec![],
+        }),
+        poll_id,
+    )))
+}
+
+pub fn execute_poll_messages(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    poll_id: u64,
+) -> StdResult<Response> {
+    let mut a_poll: Poll = load_poll(deps.storage, poll_id)?;
+
     remove_poll_indexer(deps.storage, &PollStatus::Passed, poll_id);
     store_poll_indexer(deps.storage, &PollStatus::Executed, poll_id)?;
 
     a_poll.status = PollStatus::Executed;
     store_poll(deps.storage, poll_id, &a_poll)?;
 
-    let mut messages: Vec<SubMsg> = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
     if let Some(all_msgs) = a_poll.execute_data {
         let mut msgs = all_msgs;
         msgs.sort();
         for msg in msgs {
-            messages.push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: msg.contract.to_string(),
                 msg: msg.msg,
                 funds: vec![],
-            })))
+            }));
         }
     } else {
-        return Err(StdError::generic_err("The poll does not have execute_data"));
-    }
-
-    Ok(Response::new()
-        .add_submessages(messages)
-        .add_attributes(vec![
-            ("action", "execute_poll"),
-            ("poll_id", &poll_id.to_string()),
-        ]))
-}
-
-/// ExpirePoll is used to make the poll as expired state for querying purpose
-pub fn expire_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
-    let config = load_config(deps.storage)?;
-    let mut a_poll = load_poll(deps.storage, poll_id)?;
-
-    if a_poll.status != PollStatus::Passed {
-        return Err(StdError::generic_err("Poll is not in passed status"));
-    }
-
-    if a_poll.execute_data.is_none() {
         return Err(StdError::generic_err(
-            "Cannot make a text proposal to expired state",
+            "The poll does not have executable data",
         ));
     }
 
-    if a_poll.end_height + config.expiration_period > env.block.height {
-        return Err(StdError::generic_err("Expire height has not been reached"));
-    }
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        ("action", "execute_poll"),
+        ("poll_id", poll_id.to_string().as_str()),
+    ]))
+}
 
-    remove_poll_indexer(deps.storage, &PollStatus::Passed, poll_id);
-    store_poll_indexer(deps.storage, &PollStatus::Expired, poll_id)?;
+/// Set the status of a poll to Failed if execute_poll fails
+pub fn fail_poll(deps: DepsMut, poll_id: u64) -> StdResult<Response> {
+    let mut a_poll: Poll = load_poll(deps.storage, poll_id)?;
 
-    a_poll.status = PollStatus::Expired;
+    remove_poll_indexer(deps.storage, &PollStatus::Executed, poll_id);
+    store_poll_indexer(deps.storage, &PollStatus::Failed, poll_id)?;
+
+    a_poll.status = PollStatus::Failed;
     store_poll(deps.storage, poll_id, &a_poll)?;
 
     Ok(Response::new().add_attributes(vec![
-        ("action", "expire_poll"),
+        ("action", "fail_poll"),
         ("poll_id", &poll_id.to_string()),
     ]))
 }

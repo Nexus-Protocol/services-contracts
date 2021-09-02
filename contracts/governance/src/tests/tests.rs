@@ -1,4 +1,4 @@
-use crate::contract::{execute, instantiate, query};
+use crate::contract::{execute, instantiate, query, reply};
 use crate::state::{
     load_bank, load_config, load_poll_voter, load_state, store_bank, store_poll, store_poll_voter,
     Config, Poll, State, TokenManager,
@@ -8,15 +8,15 @@ use crate::tests::mock_querier::{mock_dependencies, WasmMockQuerier};
 use crate::querier::query_token_balance;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Addr, CosmosMsg, Decimal, Env, OwnedDeps, Response,
-    StdError, SubMsg, Timestamp, Uint128, WasmMsg,
+    attr, coins, from_binary, to_binary, Addr, ContractResult, CosmosMsg, Decimal, Env, OwnedDeps,
+    Reply, Response, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use services::common::OrderBy;
 use services::governance::{
     AnyoneMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg,
     PollExecuteMsg, PollResponse, PollStatus, PollsResponse, QueryMsg, StakerResponse, VoteOption,
-    VoterInfo, VotersResponse, VotersResponseItem,
+    VoterInfo, VotersResponse, VotersResponseItem, YourselfMsg,
 };
 
 const VOTING_TOKEN: &str = "voting_token";
@@ -29,7 +29,6 @@ const DEFAULT_THRESHOLD: u64 = 50u64;
 const DEFAULT_VOTING_PERIOD: u64 = 10000u64;
 const DEFAULT_FIX_PERIOD: u64 = 10u64;
 const DEFAULT_TIMELOCK_PERIOD: u64 = 10000u64;
-const DEFAULT_EXPIRATION_PERIOD: u64 = 20000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 10000000000u128;
 
 fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
@@ -38,7 +37,6 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
-        expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
     };
@@ -58,31 +56,6 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             threshold: Decimal::percent(DEFAULT_THRESHOLD),
             voting_period: DEFAULT_VOTING_PERIOD,
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
-            expiration_period: DEFAULT_EXPIRATION_PERIOD,
-            proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
-            snapshot_period: DEFAULT_FIX_PERIOD,
-        }
-    );
-
-    let msg = ExecuteMsg::Anyone {
-        anyone_msg: AnyoneMsg::RegisterToken {
-            psi_token: VOTING_TOKEN.to_string(),
-        },
-    };
-    execute(deps.as_mut(), mock_env(), info.clone(), msg.clone())
-        .expect("contract successfully handles RegisterToken");
-
-    let config = load_config(deps.as_ref().storage).unwrap();
-    assert_eq!(
-        config,
-        Config {
-            owner: Addr::unchecked(TEST_CREATOR.to_string()),
-            psi_token: Addr::unchecked(VOTING_TOKEN.to_string()),
-            quorum: Decimal::percent(DEFAULT_QUORUM),
-            threshold: Decimal::percent(DEFAULT_THRESHOLD),
-            voting_period: DEFAULT_VOTING_PERIOD,
-            timelock_period: DEFAULT_TIMELOCK_PERIOD,
-            expiration_period: DEFAULT_EXPIRATION_PERIOD,
             proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             snapshot_period: DEFAULT_FIX_PERIOD,
         }
@@ -150,7 +123,6 @@ fn fails_init_invalid_quorum() {
         threshold: Decimal::percent(DEFAULT_THRESHOLD),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
-        expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
     };
@@ -173,7 +145,6 @@ fn fails_init_invalid_threshold() {
         threshold: Decimal::percent(101),
         voting_period: DEFAULT_VOTING_PERIOD,
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
-        expiration_period: DEFAULT_EXPIRATION_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
     };
@@ -792,6 +763,26 @@ fn happy_days_end_poll() {
     .unwrap();
     assert_eq!(
         execute_res.messages,
+        vec![SubMsg::reply_always(
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: creator_env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::Yourself {
+                    yourself_msg: YourselfMsg::ExecutePollMsgs { poll_id: 1 }
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            1
+        )]
+    );
+
+    let msg = ExecuteMsg::Yourself {
+        yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
+    };
+    let contract_info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+    let execute_res = execute(deps.as_mut(), creator_env, contract_info, msg).unwrap();
+    assert_eq!(
+        execute_res.messages,
         vec![
             SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: VOTING_TOKEN.to_string(),
@@ -920,7 +911,7 @@ fn happy_days_end_poll() {
 }
 
 #[test]
-fn expire_poll() {
+fn fail_poll() {
     const POLL_START_HEIGHT: u64 = 1000;
     const POLL_ID: u64 = 1;
     let stake_amount = 1000;
@@ -1008,19 +999,6 @@ fn expire_poll() {
 
     // Poll is not in passed status
     creator_env.block.height = &creator_env.block.height + DEFAULT_TIMELOCK_PERIOD;
-    let msg = ExecuteMsg::Anyone {
-        anyone_msg: AnyoneMsg::ExpirePoll { poll_id: 1 },
-    };
-    let execute_res = execute(
-        deps.as_mut(),
-        creator_env.clone(),
-        creator_info.clone(),
-        msg,
-    );
-    match execute_res {
-        Err(StdError::GenericErr { msg, .. }) => assert_eq!(msg, "Poll is not in passed status"),
-        _ => panic!("DO NOT ENTER HERE"),
-    }
 
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::EndPoll { poll_id: 1 },
@@ -1055,44 +1033,66 @@ fn expire_poll() {
         }))]
     );
 
-    // Expiration period has not been passed
+    // Execute Poll should send submsg ExecutePollMsgs
     let msg = ExecuteMsg::Anyone {
-        anyone_msg: AnyoneMsg::ExpirePoll { poll_id: 1 },
+        anyone_msg: AnyoneMsg::ExecutePoll { poll_id: 1 },
     };
     let execute_res = execute(
         deps.as_mut(),
         creator_env.clone(),
         creator_info.clone(),
         msg,
-    );
-    match execute_res {
-        Err(StdError::GenericErr { msg, .. }) => {
-            assert_eq!(msg, "Expire height has not been reached")
-        }
-        _ => panic!("DO NOT ENTER HERE"),
-    }
-
-    creator_env.block.height = &creator_env.block.height + DEFAULT_EXPIRATION_PERIOD;
-    let msg = ExecuteMsg::Anyone {
-        anyone_msg: AnyoneMsg::ExpirePoll { poll_id: 1 },
-    };
-    execute(
-        deps.as_mut(),
-        creator_env.clone(),
-        creator_info.clone(),
-        msg,
     )
     .unwrap();
+    assert_eq!(
+        execute_res.messages,
+        vec![SubMsg::reply_always(
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: creator_env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::Yourself {
+                    yourself_msg: YourselfMsg::ExecutePollMsgs { poll_id: 1 }
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            1
+        )]
+    );
+
+    // ExecutePollMsgs should send poll messages
+    let msg = ExecuteMsg::Yourself {
+        yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
+    };
+    let contract_info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+    let execute_res = execute(deps.as_mut(), creator_env, contract_info, msg).unwrap();
+    assert_eq!(
+        execute_res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: VOTING_TOKEN.to_string(),
+            msg: exec_msg_bz,
+            funds: vec![],
+        }))]
+    );
+
+    let reply_msg = Reply {
+        id: 1,
+        result: ContractResult::Err("Error".to_string()),
+    };
+    let res = reply(deps.as_mut(), mock_env(), reply_msg).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![attr("action", "fail_poll"), attr("poll_id", "1")]
+    );
 
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let poll_res: PollResponse = from_binary(&res).unwrap();
-    assert_eq!(poll_res.status, PollStatus::Expired);
+    assert_eq!(poll_res.status, PollStatus::Failed);
 
     let res = query(
         deps.as_ref(),
         mock_env(),
         QueryMsg::Polls {
-            filter: Some(PollStatus::Expired),
+            filter: Some(PollStatus::Failed),
             start_after: None,
             limit: None,
             order_by: Some(OrderBy::Desc),
@@ -2337,7 +2337,6 @@ fn update_config() {
             threshold: None,
             voting_period: None,
             timelock_period: None,
-            expiration_period: None,
             proposal_deposit: None,
             snapshot_period: None,
         },
@@ -2366,7 +2365,6 @@ fn update_config() {
             threshold: Some(Decimal::percent(75)),
             voting_period: Some(20000u64),
             timelock_period: Some(20000u64),
-            expiration_period: Some(30000u64),
             proposal_deposit: Some(Uint128::new(123u128)),
             snapshot_period: Some(11),
         },
@@ -2383,7 +2381,6 @@ fn update_config() {
     assert_eq!(Decimal::percent(75), config.threshold);
     assert_eq!(20000u64, config.voting_period);
     assert_eq!(20000u64, config.timelock_period);
-    assert_eq!(30000u64, config.expiration_period);
     assert_eq!(123u128, config.proposal_deposit.u128());
     assert_eq!(11u64, config.snapshot_period);
 
@@ -2397,7 +2394,6 @@ fn update_config() {
             threshold: None,
             voting_period: None,
             timelock_period: None,
-            expiration_period: None,
             proposal_deposit: None,
             snapshot_period: None,
         },
@@ -2653,7 +2649,27 @@ fn execute_poll_with_order() {
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::ExecutePoll { poll_id: 1 },
     };
-    let execute_res = execute(deps.as_mut(), creator_env, creator_info, msg).unwrap();
+    let execute_res = execute(deps.as_mut(), creator_env.clone(), creator_info, msg).unwrap();
+    assert_eq!(
+        execute_res.messages,
+        vec![SubMsg::reply_always(
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: creator_env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::Yourself {
+                    yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            1
+        )]
+    );
+
+    let msg = ExecuteMsg::Yourself {
+        yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
+    };
+    let contract_info = mock_info(MOCK_CONTRACT_ADDR, &[]);
+    let execute_res = execute(deps.as_mut(), creator_env, contract_info, msg).unwrap();
     assert_eq!(
         execute_res.messages,
         vec![

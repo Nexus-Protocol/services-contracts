@@ -5,13 +5,13 @@ use crate::{
 };
 
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Uint128,
+    entry_point, from_binary, to_binary, Addr, Binary, ContractResult, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, Uint128,
 };
 
 use cw20::Cw20ReceiveMsg;
 use services::governance::{
-    AnyoneMsg, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg, QueryMsg,
+    AnyoneMsg, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg, QueryMsg, YourselfMsg,
 };
 
 pub(crate) const MIN_TITLE_LENGTH: usize = 4;
@@ -38,7 +38,6 @@ pub fn instantiate(
         threshold: msg.threshold,
         voting_period: msg.voting_period,
         timelock_period: msg.timelock_period,
-        expiration_period: msg.expiration_period,
         proposal_deposit: msg.proposal_deposit,
         snapshot_period: msg.snapshot_period,
     };
@@ -53,6 +52,14 @@ pub fn instantiate(
     store_state(deps.storage, &state)?;
 
     Ok(Response::default())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
+    match msg.result {
+        ContractResult::Err { .. } => commands::fail_poll(deps, msg.id),
+        _ => Ok(Response::default()),
+    }
 }
 
 #[entry_point]
@@ -71,7 +78,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     threshold,
                     voting_period,
                     timelock_period,
-                    expiration_period,
                     proposal_deposit,
                     snapshot_period,
                 } => commands::update_config(
@@ -82,7 +88,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     threshold,
                     voting_period,
                     timelock_period,
-                    expiration_period,
                     proposal_deposit,
                     snapshot_period,
                 ),
@@ -103,9 +108,20 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             } => commands::cast_vote(deps, env, info, poll_id, vote, amount),
             AnyoneMsg::EndPoll { poll_id } => commands::end_poll(deps, env, poll_id),
             AnyoneMsg::ExecutePoll { poll_id } => commands::execute_poll(deps, env, poll_id),
-            AnyoneMsg::ExpirePoll { poll_id } => commands::expire_poll(deps, env, poll_id),
             AnyoneMsg::SnapshotPoll { poll_id } => commands::snapshot_poll(deps, env, poll_id),
         },
+
+        ExecuteMsg::Yourself { yourself_msg } => {
+            if info.sender != env.contract.address {
+                return Err(StdError::generic_err("unauthorized"));
+            }
+
+            match yourself_msg {
+                YourselfMsg::ExecutePollMsgs { poll_id } => {
+                    commands::execute_poll_messages(deps, env, info, poll_id)
+                }
+            }
+        }
     }
 }
 

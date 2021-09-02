@@ -27,7 +27,6 @@ pub struct Config {
     pub threshold: Decimal,
     pub voting_period: u64,
     pub timelock_period: u64,
-    pub expiration_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
 }
@@ -283,7 +282,7 @@ mod test {
             Poll {
                 id: 0u64,
                 creator: Addr::unchecked(""),
-                status: PollStatus::Expired,
+                status: PollStatus::Failed,
                 yes_votes: Uint128::zero(),
                 no_votes: Uint128::zero(),
                 end_height: 0u64,
