@@ -268,7 +268,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
 /// Execute a msgs of passed poll as one submsg to catch failures
 pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
     let config: Config = load_config(deps.storage)?;
-    let mut a_poll = load_poll(deps.storage, poll_id)?;
+    let a_poll = load_poll(deps.storage, poll_id)?;
 
     if a_poll.status != PollStatus::Passed {
         return Err(StdError::generic_err("Poll is not in passed status"));
@@ -290,12 +290,7 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
     )))
 }
 
-pub fn execute_poll_messages(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    poll_id: u64,
-) -> StdResult<Response> {
+pub fn execute_poll_messages(deps: DepsMut, poll_id: u64) -> StdResult<Response> {
     let mut a_poll: Poll = load_poll(deps.storage, poll_id)?;
 
     remove_poll_indexer(deps.storage, &PollStatus::Passed, poll_id);

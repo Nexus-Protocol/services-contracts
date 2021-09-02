@@ -118,7 +118,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
 
             match yourself_msg {
                 YourselfMsg::ExecutePollMsgs { poll_id } => {
-                    commands::execute_poll_messages(deps, env, info, poll_id)
+                    commands::execute_poll_messages(deps, poll_id)
                 }
             }
         }

@@ -66,6 +66,29 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             psi_token: VOTING_TOKEN.to_string(),
         },
     };
+    execute(deps.as_mut(), mock_env(), info.clone(), msg.clone())
+        .expect("contract successfully handles RegisterToken");
+
+    let config = load_config(deps.as_ref().storage).unwrap();
+    assert_eq!(
+        config,
+        Config {
+            owner: Addr::unchecked(TEST_CREATOR.to_string()),
+            psi_token: Addr::unchecked(VOTING_TOKEN.to_string()),
+            quorum: Decimal::percent(DEFAULT_QUORUM),
+            threshold: Decimal::percent(DEFAULT_THRESHOLD),
+            voting_period: DEFAULT_VOTING_PERIOD,
+            timelock_period: DEFAULT_TIMELOCK_PERIOD,
+            proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
+            snapshot_period: DEFAULT_FIX_PERIOD,
+        }
+    );
+
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::RegisterToken {
+            psi_token: VOTING_TOKEN.to_string(),
+        },
+    };
 
     // can't change token_address
     let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -1034,6 +1057,7 @@ fn fail_poll() {
     );
 
     // Execute Poll should send submsg ExecutePollMsgs
+    creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::ExecutePoll { poll_id: 1 },
     };
@@ -1087,6 +1111,20 @@ fn fail_poll() {
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let poll_res: PollResponse = from_binary(&res).unwrap();
     assert_eq!(poll_res.status, PollStatus::Failed);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Polls {
+            filter: Some(PollStatus::Executed),
+            start_after: None,
+            limit: None,
+            order_by: Some(OrderBy::Desc),
+        },
+    )
+    .unwrap();
+    let polls_res: PollsResponse = from_binary(&res).unwrap();
+    assert!(polls_res.polls.is_empty());
 
     let res = query(
         deps.as_ref(),
