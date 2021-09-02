@@ -1,17 +1,17 @@
 use crate::{
     commands, queries,
-    state::{load_config, store_config, store_state, Config, State},
+    state::{load_config, load_tmp_poll_id, store_config, store_state, Config, State},
     utils,
 };
 
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, ContractResult, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, Uint128,
+    entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    Response, StdError, StdResult, Uint128,
 };
 
 use cw20::Cw20ReceiveMsg;
 use services::governance::{
-    AnyoneMsg, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg, QueryMsg, YourselfMsg,
+    AnyoneMsg, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg, QueryMsg,
 };
 
 pub(crate) const MIN_TITLE_LENGTH: usize = 4;
@@ -20,6 +20,8 @@ pub(crate) const MIN_DESC_LENGTH: usize = 4;
 pub(crate) const MAX_DESC_LENGTH: usize = 1024;
 pub(crate) const MIN_LINK_LENGTH: usize = 12;
 pub(crate) const MAX_LINK_LENGTH: usize = 128;
+
+pub(crate) const POLL_EXECUTE_REPLY_ID: u64 = 1;
 
 #[entry_point]
 pub fn instantiate(
@@ -56,9 +58,12 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> StdResult<Response> {
-    match msg.result {
-        ContractResult::Err { .. } => commands::fail_poll(deps, msg.id),
-        _ => Ok(Response::default()),
+    match msg.id {
+        POLL_EXECUTE_REPLY_ID => {
+            let poll_id: u64 = load_tmp_poll_id(deps.storage)?;
+            commands::fail_poll(deps, poll_id)
+        }
+        _ => Err(StdError::generic_err("reply id is invalid")),
     }
 }
 
@@ -110,18 +115,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             AnyoneMsg::ExecutePoll { poll_id } => commands::execute_poll(deps, env, poll_id),
             AnyoneMsg::SnapshotPoll { poll_id } => commands::snapshot_poll(deps, env, poll_id),
         },
-
-        ExecuteMsg::Yourself { yourself_msg } => {
-            if info.sender != env.contract.address {
-                return Err(StdError::generic_err("unauthorized"));
-            }
-
-            match yourself_msg {
-                YourselfMsg::ExecutePollMsgs { poll_id } => {
-                    commands::execute_poll_messages(deps, poll_id)
-                }
-            }
-        }
     }
 }
 

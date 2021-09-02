@@ -1,7 +1,7 @@
 use crate::contract::{execute, instantiate, query, reply};
 use crate::state::{
-    load_bank, load_config, load_poll_voter, load_state, store_bank, store_poll, store_poll_voter,
-    Config, Poll, State, TokenManager,
+    load_bank, load_config, load_poll_voter, load_state, load_tmp_poll_id, store_bank, store_poll,
+    store_poll_voter, Config, Poll, State, TokenManager,
 };
 use crate::tests::mock_querier::{mock_dependencies, WasmMockQuerier};
 
@@ -16,7 +16,7 @@ use services::common::OrderBy;
 use services::governance::{
     AnyoneMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg,
     PollExecuteMsg, PollResponse, PollStatus, PollsResponse, QueryMsg, StakerResponse, VoteOption,
-    VoterInfo, VotersResponse, VotersResponseItem, YourselfMsg,
+    VoterInfo, VotersResponse, VotersResponseItem,
 };
 
 const VOTING_TOKEN: &str = "voting_token";
@@ -784,50 +784,42 @@ fn happy_days_end_poll() {
         msg,
     )
     .unwrap();
-    assert_eq!(
-        execute_res.messages,
-        vec![SubMsg::reply_always(
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: creator_env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::Yourself {
-                    yourself_msg: YourselfMsg::ExecutePollMsgs { poll_id: 1 }
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            1
-        )]
-    );
 
-    let msg = ExecuteMsg::Yourself {
-        yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
-    };
-    let contract_info = mock_info(MOCK_CONTRACT_ADDR, &[]);
-    let execute_res = execute(deps.as_mut(), creator_env, contract_info, msg).unwrap();
     assert_eq!(
         execute_res.messages,
         vec![
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz.clone(),
-                funds: vec![],
-            })),
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz2,
-                funds: vec![],
-            })),
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz3,
-                funds: vec![],
-            }))
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz.clone(),
+                    funds: vec![],
+                }),
+                1
+            ),
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz2,
+                    funds: vec![],
+                }),
+                1
+            ),
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz3,
+                    funds: vec![],
+                }),
+                1
+            )
         ]
     );
     assert_eq!(
         execute_res.attributes,
         vec![attr("action", "execute_poll"), attr("poll_id", "1"),]
     );
+    let tmp_poll_id = load_tmp_poll_id(&deps.storage).unwrap();
+    assert_eq!(tmp_poll_id, 1);
 
     // Query executed polls
     let res = query(
@@ -1056,47 +1048,25 @@ fn fail_poll() {
         }))]
     );
 
-    // Execute Poll should send submsg ExecutePollMsgs
+    // Execute Poll should send poll messages
     creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::ExecutePoll { poll_id: 1 },
     };
-    let execute_res = execute(
-        deps.as_mut(),
-        creator_env.clone(),
-        creator_info.clone(),
-        msg,
-    )
-    .unwrap();
+    let execute_res = execute(deps.as_mut(), creator_env, creator_info.clone(), msg).unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
+        vec![SubMsg::reply_on_error(
             CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: creator_env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::Yourself {
-                    yourself_msg: YourselfMsg::ExecutePollMsgs { poll_id: 1 }
-                })
-                .unwrap(),
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: exec_msg_bz,
                 funds: vec![],
             }),
             1
         )]
     );
-
-    // ExecutePollMsgs should send poll messages
-    let msg = ExecuteMsg::Yourself {
-        yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
-    };
-    let contract_info = mock_info(MOCK_CONTRACT_ADDR, &[]);
-    let execute_res = execute(deps.as_mut(), creator_env, contract_info, msg).unwrap();
-    assert_eq!(
-        execute_res.messages,
-        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: VOTING_TOKEN.to_string(),
-            msg: exec_msg_bz,
-            funds: vec![],
-        }))]
-    );
+    let tmp_poll_id = load_tmp_poll_id(&deps.storage).unwrap();
+    assert_eq!(tmp_poll_id, 1);
 
     let reply_msg = Reply {
         id: 1,
@@ -2690,58 +2660,55 @@ fn execute_poll_with_order() {
     let execute_res = execute(deps.as_mut(), creator_env.clone(), creator_info, msg).unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
-            CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: creator_env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::Yourself {
-                    yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
-                })
-                .unwrap(),
-                funds: vec![],
-            }),
-            1
-        )]
-    );
-
-    let msg = ExecuteMsg::Yourself {
-        yourself_msg: services::governance::YourselfMsg::ExecutePollMsgs { poll_id: 1 },
-    };
-    let contract_info = mock_info(MOCK_CONTRACT_ADDR, &[]);
-    let execute_res = execute(deps.as_mut(), creator_env, contract_info, msg).unwrap();
-    assert_eq!(
-        execute_res.messages,
         vec![
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz,
-                funds: vec![],
-            })),
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz2,
-                funds: vec![],
-            })),
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz3,
-                funds: vec![],
-            })),
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz4,
-                funds: vec![],
-            })),
-            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: VOTING_TOKEN.to_string(),
-                msg: exec_msg_bz5,
-                funds: vec![],
-            })),
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz,
+                    funds: vec![],
+                }),
+                1
+            ),
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz2,
+                    funds: vec![],
+                }),
+                1
+            ),
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz3,
+                    funds: vec![],
+                }),
+                1
+            ),
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz4,
+                    funds: vec![],
+                }),
+                1
+            ),
+            SubMsg::reply_on_error(
+                CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: VOTING_TOKEN.to_string(),
+                    msg: exec_msg_bz5,
+                    funds: vec![],
+                }),
+                1
+            ),
         ]
     );
     assert_eq!(
         execute_res.attributes,
         vec![attr("action", "execute_poll"), attr("poll_id", "1"),]
     );
+    let tmp_poll_id = load_tmp_poll_id(&deps.storage).unwrap();
+    assert_eq!(tmp_poll_id, 1);
 }
 
 #[test]

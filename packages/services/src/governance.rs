@@ -20,14 +20,7 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     Governance { governance_msg: GovernanceMsg },
     Anyone { anyone_msg: AnyoneMsg },
-    Yourself { yourself_msg: YourselfMsg },
     Receive(Cw20ReceiveMsg),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum YourselfMsg {
-    ExecutePollMsgs { poll_id: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
