@@ -10,6 +10,7 @@ use std::cmp::Ordering;
 
 static KEY_CONFIG: Item<Config> = Item::new("config");
 static KEY_STATE: Item<State> = Item::new("state");
+static TMP_POLL_ID: Item<u64> = Item::new("tmp_poll_id");
 static BANK: Map<&Addr, TokenManager> = Map::new("bank");
 
 static POLL: Map<U64Key, Poll> = Map::new("poll");
@@ -27,7 +28,6 @@ pub struct Config {
     pub threshold: Decimal,
     pub voting_period: u64,
     pub timelock_period: u64,
-    pub expiration_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
 }
@@ -113,6 +113,14 @@ pub fn load_state(storage: &dyn Storage) -> StdResult<State> {
 
 pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
     KEY_STATE.save(storage, state)
+}
+
+pub fn store_tmp_poll_id(storage: &mut dyn Storage, tmp_poll_id: u64) -> StdResult<()> {
+    TMP_POLL_ID.save(storage, &tmp_poll_id)
+}
+
+pub fn load_tmp_poll_id(storage: &dyn Storage) -> StdResult<u64> {
+    TMP_POLL_ID.load(storage)
 }
 
 pub fn load_poll(storage: &dyn Storage, poll_id: u64) -> StdResult<Poll> {
@@ -283,7 +291,7 @@ mod test {
             Poll {
                 id: 0u64,
                 creator: Addr::unchecked(""),
-                status: PollStatus::Expired,
+                status: PollStatus::Failed,
                 yes_votes: Uint128::zero(),
                 no_votes: Uint128::zero(),
                 end_height: 0u64,

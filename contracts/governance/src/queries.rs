@@ -24,7 +24,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         threshold: config.threshold,
         voting_period: config.voting_period,
         timelock_period: config.timelock_period,
-        expiration_period: config.expiration_period,
         proposal_deposit: config.proposal_deposit,
         snapshot_period: config.snapshot_period,
     })
