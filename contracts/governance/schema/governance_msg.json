@@ -11,14 +11,6 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "expiration_period": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "owner": {
               "type": [
                 "string",

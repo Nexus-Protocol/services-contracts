@@ -1,7 +1,8 @@
-use crate::contract::{execute, instantiate, query, reply};
+use crate::contract::{execute, instantiate, query, reply, POLL_EXECUTE_REPLY_ID};
 use crate::state::{
-    load_bank, load_config, load_poll_voter, load_state, store_bank, store_poll, store_poll_voter,
-    Config, Poll, State, TokenManager,
+    load_bank, load_config, load_poll_voter, load_state, load_tmp_poll_id, remove_poll_indexer,
+    store_bank, store_poll, store_poll_indexer, store_poll_voter, Config, Poll, State,
+    TokenManager,
 };
 use crate::tests::mock_querier::{mock_dependencies, WasmMockQuerier};
 
@@ -786,7 +787,7 @@ fn happy_days_end_poll() {
     .unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
+        vec![SubMsg::reply_on_error(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: creator_env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::Yourself {
@@ -828,6 +829,8 @@ fn happy_days_end_poll() {
         execute_res.attributes,
         vec![attr("action", "execute_poll"), attr("poll_id", "1"),]
     );
+    let tmp_poll_id = load_tmp_poll_id(&deps.storage).unwrap();
+    assert_eq!(tmp_poll_id, 1);
 
     // Query executed polls
     let res = query(
@@ -877,7 +880,7 @@ fn happy_days_end_poll() {
         deps.as_ref(),
         env.clone(),
         QueryMsg::Voters {
-            poll_id: 1u64,
+            poll_id: 1,
             start_after: None,
             limit: None,
             order_by: None,
@@ -1070,7 +1073,7 @@ fn fail_poll() {
     .unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
+        vec![SubMsg::reply_on_error(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: creator_env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::Yourself {
@@ -1097,11 +1100,17 @@ fn fail_poll() {
             funds: vec![],
         }))]
     );
+    let tmp_poll_id = load_tmp_poll_id(&deps.storage).unwrap();
+    assert_eq!(tmp_poll_id, 1);
 
     let reply_msg = Reply {
-        id: 1,
+        id: POLL_EXECUTE_REPLY_ID,
         result: ContractResult::Err("Error".to_string()),
     };
+    //revert poll status update, cause 'execute_poll_messages' will be reverted in fail case
+    remove_poll_indexer(&mut deps.storage, &PollStatus::Executed, 1);
+    store_poll_indexer(&mut deps.storage, &PollStatus::Passed, 1).unwrap();
+    //===
     let res = reply(deps.as_mut(), mock_env(), reply_msg).unwrap();
     assert_eq!(
         res.attributes,
@@ -1111,6 +1120,20 @@ fn fail_poll() {
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let poll_res: PollResponse = from_binary(&res).unwrap();
     assert_eq!(poll_res.status, PollStatus::Failed);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Polls {
+            filter: Some(PollStatus::Failed),
+            start_after: None,
+            limit: None,
+            order_by: Some(OrderBy::Desc),
+        },
+    )
+    .unwrap();
+    let polls_res: PollsResponse = from_binary(&res).unwrap();
+    assert_eq!(polls_res.polls[0], poll_res);
 
     let res = query(
         deps.as_ref(),
@@ -1130,7 +1153,7 @@ fn fail_poll() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Polls {
-            filter: Some(PollStatus::Failed),
+            filter: Some(PollStatus::Passed),
             start_after: None,
             limit: None,
             order_by: Some(OrderBy::Desc),
@@ -1138,7 +1161,7 @@ fn fail_poll() {
     )
     .unwrap();
     let polls_res: PollsResponse = from_binary(&res).unwrap();
-    assert_eq!(polls_res.polls[0], poll_res);
+    assert!(polls_res.polls.is_empty());
 }
 
 #[test]
@@ -1651,7 +1674,7 @@ fn happy_days_cast_vote() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Voters {
-            poll_id: 1u64,
+            poll_id: 1,
             start_after: None,
             limit: None,
             order_by: Some(OrderBy::Desc),
@@ -1672,7 +1695,7 @@ fn happy_days_cast_vote() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Voters {
-            poll_id: 1u64,
+            poll_id: 1,
             start_after: Some(TEST_VOTER.to_string()),
             limit: None,
             order_by: None,
@@ -2690,7 +2713,7 @@ fn execute_poll_with_order() {
     let execute_res = execute(deps.as_mut(), creator_env.clone(), creator_info, msg).unwrap();
     assert_eq!(
         execute_res.messages,
-        vec![SubMsg::reply_always(
+        vec![SubMsg::reply_on_error(
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: creator_env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::Yourself {
@@ -2742,6 +2765,8 @@ fn execute_poll_with_order() {
         execute_res.attributes,
         vec![attr("action", "execute_poll"), attr("poll_id", "1"),]
     );
+    let tmp_poll_id = load_tmp_poll_id(&deps.storage).unwrap();
+    assert_eq!(tmp_poll_id, 1);
 }
 
 #[test]

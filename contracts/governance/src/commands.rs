@@ -7,11 +7,13 @@ use services::governance::{
 };
 
 use crate::{
+    contract::POLL_EXECUTE_REPLY_ID,
     querier::query_token_balance,
     state::{
         load_bank, load_config, load_poll, load_poll_voter, load_state, may_load_bank,
         remove_poll_indexer, remove_poll_voter, store_bank, store_config, store_poll,
-        store_poll_indexer, store_poll_voter, store_state, Config, ExecuteData, Poll, TokenManager,
+        store_poll_indexer, store_poll_voter, store_state, store_tmp_poll_id, Config, ExecuteData,
+        Poll, TokenManager,
     },
     utils,
 };
@@ -278,7 +280,9 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
         return Err(StdError::generic_err("Timelock period has not expired"));
     }
 
-    Ok(Response::new().add_submessage(SubMsg::reply_always(
+    store_tmp_poll_id(deps.storage, poll_id)?;
+
+    Ok(Response::new().add_submessage(SubMsg::reply_on_error(
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             msg: to_binary(&ExecuteMsg::Yourself {
@@ -286,7 +290,7 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
             })?,
             funds: vec![],
         }),
-        poll_id,
+        POLL_EXECUTE_REPLY_ID,
     )))
 }
 
@@ -318,7 +322,7 @@ pub fn execute_poll_messages(deps: DepsMut, poll_id: u64) -> StdResult<Response>
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         ("action", "execute_poll"),
-        ("poll_id", poll_id.to_string().as_str()),
+        ("poll_id", &poll_id.to_string()),
     ]))
 }
 
@@ -326,7 +330,8 @@ pub fn execute_poll_messages(deps: DepsMut, poll_id: u64) -> StdResult<Response>
 pub fn fail_poll(deps: DepsMut, poll_id: u64) -> StdResult<Response> {
     let mut a_poll: Poll = load_poll(deps.storage, poll_id)?;
 
-    remove_poll_indexer(deps.storage, &PollStatus::Executed, poll_id);
+    //remove 'Passed' status cause update status Passed->Executed will be reverted in 'execute_poll_messages'
+    remove_poll_indexer(deps.storage, &PollStatus::Passed, poll_id);
     store_poll_indexer(deps.storage, &PollStatus::Failed, poll_id)?;
 
     a_poll.status = PollStatus::Failed;
