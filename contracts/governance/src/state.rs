@@ -67,6 +67,7 @@ pub struct Poll {
     pub description: String,
     pub link: Option<String>,
     pub execute_data: Option<Vec<ExecuteData>>,
+    pub migrate_data: Option<Vec<MigrateData>>,
     pub deposit_amount: Uint128,
     /// Total balance at the end poll
     pub total_balance_at_end_poll: Option<Uint128>,
@@ -94,6 +95,34 @@ impl PartialOrd for ExecuteData {
 }
 
 impl PartialEq for ExecuteData {
+    fn eq(&self, other: &Self) -> bool {
+        self.order == other.order
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+pub struct MigrateData {
+    pub order: u64,
+    pub contract: Addr,
+    pub new_code_id: u64,
+    pub msg: Binary,
+}
+
+impl Eq for MigrateData {}
+
+impl Ord for MigrateData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.order.cmp(&other.order)
+    }
+}
+
+impl PartialOrd for MigrateData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for MigrateData {
     fn eq(&self, other: &Self) -> bool {
         self.order == other.order
     }
@@ -299,6 +328,7 @@ mod test {
                 description: String::default(),
                 link: None,
                 execute_data: None,
+                migrate_data: None,
                 deposit_amount: Uint128::zero(),
                 total_balance_at_end_poll: None,
                 staked_amount: None,

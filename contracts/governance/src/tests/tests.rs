@@ -13,12 +13,19 @@ use cosmwasm_std::{
     Reply, Response, StdError, SubMsg, Timestamp, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use services::common::OrderBy;
 use services::governance::{
     AnyoneMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg,
-    PollExecuteMsg, PollResponse, PollStatus, PollsResponse, QueryMsg, StakerResponse, VoteOption,
-    VoterInfo, VotersResponse, VotersResponseItem, YourselfMsg,
+    PollExecuteMsg, PollMigrateMsg, PollResponse, PollStatus, PollsResponse, QueryMsg,
+    StakerResponse, VoteOption, VoterInfo, VotersResponse, VotersResponseItem, YourselfMsg,
 };
+
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+pub struct MigrateMsg {
+    id: u64,
+}
 
 const VOTING_TOKEN: &str = "voting_token";
 const TEST_CREATOR: &str = "creator";
@@ -186,7 +193,7 @@ fn fails_create_poll_invalid_title() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
 
-    let msg = create_poll_msg("a", "test", None, None);
+    let msg = create_poll_msg("a", "test", None, None, None);
     let env = mock_env();
     let info = mock_info(VOTING_TOKEN, &vec![]);
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg);
@@ -199,6 +206,7 @@ fn fails_create_poll_invalid_title() {
     let msg = create_poll_msg(
             "0123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234012345678901234567890123456789012345678901234567890123456789012340123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234",
             "test",
+            None,
             None,
             None,
         );
@@ -215,7 +223,7 @@ fn fails_create_poll_invalid_description() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
 
-    let msg = create_poll_msg("test", "a", None, None);
+    let msg = create_poll_msg("test", "a", None, None, None);
     let env = mock_env();
     let info = mock_info(VOTING_TOKEN, &vec![]);
     match execute(deps.as_mut(), env.clone(), info.clone(), msg) {
@@ -227,6 +235,7 @@ fn fails_create_poll_invalid_description() {
     let msg = create_poll_msg(
             "test",
             "012345678901234567890123456789012345678901234567890123456789012340123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234012345678900123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234012345678901234567890123456789012345678901234567890123456789012340123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234123456789012340123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234012345678901234567890123456789012345678901234567890123456789012340123456789001234567890123456789012345678901234567890123456789012345678901234012345678901234567890123456789012345678901234567890123456789012340123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234012345678901234567890123456789012345678901234567890123456789012341234567890123456789012345678901234567890123456789012340123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012340123456789012345678901234567890123456789012345678901234567890123456",
+            None,
             None,
             None,
         );
@@ -243,7 +252,7 @@ fn fails_create_poll_invalid_link() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
 
-    let msg = create_poll_msg("test", "test", Some("http://hih"), None);
+    let msg = create_poll_msg("test", "test", Some("http://hih"), None, None);
     let env = mock_env();
     let info = mock_info(VOTING_TOKEN, &vec![]);
     match execute(deps.as_mut(), env.clone(), info.clone(), msg) {
@@ -256,6 +265,7 @@ fn fails_create_poll_invalid_link() {
             "test",
             "test",
             Some("0123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234012345678901234567890123456789012345678901234567890123456789012340123456789012345678901234567890123456789012345678901234567890123401234567890123456789012345678901234567890123456789012345678901234"),
+            None,
             None,
         );
 
@@ -279,6 +289,7 @@ fn fails_create_poll_invalid_deposit() {
             description: "TESTTEST".to_string(),
             link: None,
             execute_msgs: None,
+            migrate_msgs: None,
         })
         .unwrap(),
     });
@@ -299,6 +310,7 @@ fn create_poll_msg<A: Into<String>>(
     description: A,
     link: Option<A>,
     execute_msg: Option<Vec<PollExecuteMsg>>,
+    migrate_msg: Option<Vec<PollMigrateMsg>>,
 ) -> ExecuteMsg {
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
         sender: TEST_CREATOR.to_string(),
@@ -308,6 +320,7 @@ fn create_poll_msg<A: Into<String>>(
             description: description.into(),
             link: link.map(|l| l.into()),
             execute_msgs: execute_msg,
+            migrate_msgs: migrate_msg,
         })
         .unwrap(),
     });
@@ -321,7 +334,7 @@ fn happy_days_create_poll() {
     let env = mock_env_height(0, 10000);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
 
     let handle_res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_create_poll_result(
@@ -380,10 +393,11 @@ fn query_polls() {
         "test".to_string(),
         Some("http://google.com".to_string()),
         Some(execute_msgs.clone()),
+        None,
     );
 
     let _handle_res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
-    let msg = create_poll_msg("test2", "test2", None, None);
+    let msg = create_poll_msg("test2", "test2", None, None, None);
     let _handle_res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
 
     let res = query(
@@ -549,7 +563,7 @@ fn create_poll_no_quorum() {
     let env = mock_env_height(0, 10000);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
 
     let handle_res = execute(deps.as_mut(), env, info, msg).unwrap();
     assert_create_poll_result(1, DEFAULT_VOTING_PERIOD, TEST_CREATOR, handle_res, &deps);
@@ -562,7 +576,7 @@ fn fails_end_poll_before_end_height() {
     let env = mock_env_height(0, 10000);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
 
     let handle_res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_create_poll_result(1, DEFAULT_VOTING_PERIOD, TEST_CREATOR, handle_res, &deps);
@@ -630,7 +644,7 @@ fn happy_days_end_poll() {
         msg: exec_msg_bz.clone(),
     });
 
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs));
+    let msg = create_poll_msg("test", "test", None, Some(execute_msgs), None);
 
     let execute_res = execute(
         deps.as_mut(),
@@ -957,7 +971,7 @@ fn fail_poll() {
         contract: VOTING_TOKEN.to_string(),
         msg: exec_msg_bz.clone(),
     });
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs));
+    let msg = create_poll_msg("test", "test", None, Some(execute_msgs), None);
 
     let execute_res = execute(
         deps.as_mut(),
@@ -1181,7 +1195,7 @@ fn end_poll_zero_quorum() {
         .unwrap(),
     });
 
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs));
+    let msg = create_poll_msg("test", "test", None, Some(execute_msgs), None);
 
     let execute_res = execute(
         deps.as_mut(),
@@ -1290,7 +1304,7 @@ fn end_poll_quorum_rejected() {
     let mut deps = mock_dependencies(&coins(100, VOTING_TOKEN));
     mock_init(&mut deps);
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
     let mut creator_env = mock_env();
     let mut creator_info = mock_info(VOTING_TOKEN, &vec![]);
     let execute_res = execute(
@@ -1381,7 +1395,7 @@ fn end_poll_quorum_rejected_noting_staked() {
     let mut deps = mock_dependencies(&coins(100, VOTING_TOKEN));
     mock_init(&mut deps);
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
     let mut creator_env = mock_env();
     let mut creator_info = mock_info(VOTING_TOKEN, &vec![]);
     let execute_res = execute(
@@ -1434,7 +1448,7 @@ fn end_poll_nay_rejected() {
     let mut creator_env = mock_env();
     let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
 
     let execute_res = execute(
         deps.as_mut(),
@@ -1545,7 +1559,7 @@ fn fails_cast_vote_not_enough_staked() {
     let env = mock_env_height(0, 10000);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
 
     let execute_res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
     assert_create_poll_result(1, DEFAULT_VOTING_PERIOD, TEST_CREATOR, execute_res, &deps);
@@ -1597,7 +1611,7 @@ fn happy_days_cast_vote() {
 
     let env = mock_env_height(0, 10000);
     let info = mock_info(VOTING_TOKEN, &vec![]);
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
 
     let execute_res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
     assert_create_poll_result(1, DEFAULT_VOTING_PERIOD, TEST_CREATOR, execute_res, &deps);
@@ -1885,6 +1899,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             deposit_amount: Uint128::zero(),
             link: None,
             execute_data: None,
+            migrate_data: None,
             total_balance_at_end_poll: None,
             staked_amount: None,
         },
@@ -1906,6 +1921,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             deposit_amount: Uint128::zero(),
             link: None,
             execute_data: None,
+            migrate_data: None,
             total_balance_at_end_poll: None,
             staked_amount: None,
         },
@@ -2062,7 +2078,7 @@ fn fails_cast_vote_twice() {
     let env = mock_env_height(0, 10000);
     let info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
     let execute_res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
 
     assert_create_poll_result(
@@ -2510,7 +2526,7 @@ fn add_several_execute_msgs() {
         msg: exec_msg_bz2.clone(),
     });
 
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs.clone()));
+    let msg = create_poll_msg("test", "test", None, Some(execute_msgs.clone()), None);
 
     let execute_res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_create_poll_result(
@@ -2554,16 +2570,24 @@ fn execute_poll_with_order() {
         amount: Uint128::new(30),
     })
     .unwrap();
+
     let exec_msg_bz4 = to_binary(&Cw20ExecuteMsg::Burn {
         amount: Uint128::new(40),
     })
     .unwrap();
+
     let exec_msg_bz5 = to_binary(&Cw20ExecuteMsg::Burn {
         amount: Uint128::new(50),
     })
     .unwrap();
 
-    //add three messages with different order
+    let migrate_msg_bz = to_binary(&MigrateMsg { id: 10 }).unwrap();
+    let migrate_msg_bz2 = to_binary(&MigrateMsg { id: 20 }).unwrap();
+    let migrate_msg_bz3 = to_binary(&MigrateMsg { id: 30 }).unwrap();
+    let migrate_msg_bz4 = to_binary(&MigrateMsg { id: 40 }).unwrap();
+    let migrate_msg_bz5 = to_binary(&MigrateMsg { id: 50 }).unwrap();
+
+    //add five messages with different order
     let mut execute_msgs: Vec<PollExecuteMsg> = vec![];
 
     execute_msgs.push(PollExecuteMsg {
@@ -2596,7 +2620,45 @@ fn execute_poll_with_order() {
         msg: exec_msg_bz.clone(),
     });
 
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs));
+    //and migrate messages
+    let mut migrate_msgs: Vec<PollMigrateMsg> = vec![];
+
+    migrate_msgs.push(PollMigrateMsg {
+        order: 3u64,
+        contract: VOTING_TOKEN.to_string(),
+        msg: migrate_msg_bz3.clone(),
+        new_code_id: 11,
+    });
+
+    migrate_msgs.push(PollMigrateMsg {
+        order: 4u64,
+        contract: VOTING_TOKEN.to_string(),
+        msg: migrate_msg_bz4.clone(),
+        new_code_id: 11,
+    });
+
+    migrate_msgs.push(PollMigrateMsg {
+        order: 2u64,
+        contract: VOTING_TOKEN.to_string(),
+        msg: migrate_msg_bz2.clone(),
+        new_code_id: 11,
+    });
+
+    migrate_msgs.push(PollMigrateMsg {
+        order: 5u64,
+        contract: VOTING_TOKEN.to_string(),
+        msg: migrate_msg_bz5.clone(),
+        new_code_id: 11,
+    });
+
+    migrate_msgs.push(PollMigrateMsg {
+        order: 1u64,
+        contract: VOTING_TOKEN.to_string(),
+        msg: migrate_msg_bz.clone(),
+        new_code_id: 11,
+    });
+
+    let msg = create_poll_msg("test", "test", None, Some(execute_msgs), Some(migrate_msgs));
 
     let execute_res = execute(
         deps.as_mut(),
@@ -2759,6 +2821,31 @@ fn execute_poll_with_order() {
                 msg: exec_msg_bz5,
                 funds: vec![],
             })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: migrate_msg_bz,
+                new_code_id: 11
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: migrate_msg_bz2,
+                new_code_id: 11
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: migrate_msg_bz3,
+                new_code_id: 11
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: migrate_msg_bz4,
+                new_code_id: 11
+            })),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: migrate_msg_bz5,
+                new_code_id: 11
+            })),
         ]
     );
     assert_eq!(
@@ -2776,7 +2863,7 @@ fn snapshot_poll() {
     let mut deps = mock_dependencies(&coins(100, VOTING_TOKEN));
     mock_init(&mut deps);
 
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
     let mut creator_env = mock_env();
     let creator_info = mock_info(VOTING_TOKEN, &vec![]);
     let execute_res = execute(
@@ -2864,7 +2951,7 @@ fn happy_days_cast_vote_with_snapshot() {
 
     let env = mock_env_height(0, 10000);
     let info = mock_info(VOTING_TOKEN, &vec![]);
-    let msg = create_poll_msg("test", "test", None, None);
+    let msg = create_poll_msg("test", "test", None, None, None);
 
     let execute_res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
     assert_create_poll_result(1, DEFAULT_VOTING_PERIOD, TEST_CREATOR, execute_res, &deps);
@@ -3028,7 +3115,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
         msg: exec_msg_bz.clone(),
     });
 
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs));
+    let msg = create_poll_msg("test", "test", None, Some(execute_msgs), None);
 
     let execute_res = execute(
         deps.as_mut(),
@@ -3205,7 +3292,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
         msg: exec_msg_bz.clone(),
     });
 
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs));
+    let msg = create_poll_msg("test", "test", None, Some(execute_msgs), None);
 
     let execute_res = execute(
         deps.as_mut(),

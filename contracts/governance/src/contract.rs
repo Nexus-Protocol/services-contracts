@@ -152,6 +152,7 @@ pub fn receive_cw20(
             description,
             link,
             execute_msgs,
+            migrate_msgs,
         }) => commands::create_poll(
             deps,
             env,
@@ -161,6 +162,7 @@ pub fn receive_cw20(
             description,
             link,
             execute_msgs,
+            migrate_msgs,
         ),
 
         Err(err) => Err(err),

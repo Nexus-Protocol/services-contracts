@@ -40,6 +40,15 @@
                 "null"
               ]
             },
+            "migrate_msgs": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "$ref": "#/definitions/PollMigrateMsg"
+              }
+            },
             "title": {
               "type": "string"
             }
@@ -67,6 +76,33 @@
         },
         "msg": {
           "$ref": "#/definitions/Binary"
+        },
+        "order": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "PollMigrateMsg": {
+      "type": "object",
+      "required": [
+        "contract",
+        "msg",
+        "new_code_id",
+        "order"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string"
+        },
+        "msg": {
+          "$ref": "#/definitions/Binary"
+        },
+        "new_code_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "order": {
           "type": "integer",
