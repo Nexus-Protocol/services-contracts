@@ -3,7 +3,7 @@ use cosmwasm_std::{
     Storage, SubMsg, Uint128, WasmMsg,
 };
 use services::governance::{
-    ExecuteMsg, PollExecuteMsg, PollStatus, VoteOption, VoterInfo, YourselfMsg,
+    ExecuteMsg, PollExecuteMsg, PollMigrateMsg, PollStatus, VoteOption, VoterInfo, YourselfMsg,
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
         load_bank, load_config, load_poll, load_poll_voter, load_state, may_load_bank,
         remove_poll_indexer, remove_poll_voter, store_bank, store_config, store_poll,
         store_poll_indexer, store_poll_voter, store_state, store_tmp_poll_id, Config, ExecuteData,
-        Poll, TokenManager,
+        MigrateData, Poll, TokenManager,
     },
     utils,
 };
@@ -111,6 +111,7 @@ pub fn create_poll(
     description: String,
     link: Option<String>,
     execute_msgs: Option<Vec<PollExecuteMsg>>,
+    migrate_msgs: Option<Vec<PollMigrateMsg>>,
 ) -> StdResult<Response> {
     utils::validate_title(&title)?;
     utils::validate_description(&description)?;
@@ -131,19 +132,41 @@ pub fn create_poll(
     state.poll_count += 1;
     state.total_deposit += deposit_amount;
 
-    let mut data_list: Vec<ExecuteData> = vec![];
-    let all_execute_data = if let Some(exe_msgs) = execute_msgs {
-        for msgs in exe_msgs {
-            let execute_data = ExecuteData {
-                order: msgs.order,
-                contract: deps.api.addr_validate(&msgs.contract)?,
-                msg: msgs.msg,
-            };
-            data_list.push(execute_data)
+    let all_execute_data: Option<Vec<ExecuteData>> = match execute_msgs {
+        None => None,
+        Some(empty_vec) if empty_vec.is_empty() => None,
+        Some(msgs) => {
+            let res: StdResult<Vec<ExecuteData>> = msgs
+                .into_iter()
+                .map(|msg| {
+                    Ok(ExecuteData {
+                        order: msg.order,
+                        contract: deps.api.addr_validate(&msg.contract)?,
+                        msg: msg.msg,
+                    })
+                })
+                .collect();
+            Some(res?)
         }
-        Some(data_list)
-    } else {
-        None
+    };
+
+    let all_migrate_data: Option<Vec<MigrateData>> = match migrate_msgs {
+        None => None,
+        Some(empty_vec) if empty_vec.is_empty() => None,
+        Some(msgs) => {
+            let res: StdResult<Vec<MigrateData>> = msgs
+                .into_iter()
+                .map(|msg| {
+                    Ok(MigrateData {
+                        order: msg.order,
+                        contract: deps.api.addr_validate(&msg.contract)?,
+                        msg: msg.msg,
+                        new_code_id: msg.new_code_id,
+                    })
+                })
+                .collect();
+            Some(res?)
+        }
     };
 
     let new_poll = Poll {
@@ -157,6 +180,7 @@ pub fn create_poll(
         description,
         link,
         execute_data: all_execute_data,
+        migrate_data: all_migrate_data,
         deposit_amount,
         total_balance_at_end_poll: None,
         staked_amount: None,
@@ -303,27 +327,43 @@ pub fn execute_poll_messages(deps: DepsMut, poll_id: u64) -> StdResult<Response>
     a_poll.status = PollStatus::Executed;
     store_poll(deps.storage, poll_id, &a_poll)?;
 
-    let mut messages: Vec<CosmosMsg> = vec![];
-    if let Some(all_msgs) = a_poll.execute_data {
-        let mut msgs = all_msgs;
-        msgs.sort();
-        for msg in msgs {
-            messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+    let mut execute_messages: Vec<CosmosMsg> = vec![];
+    if let Some(mut all_exec_msgs) = a_poll.execute_data {
+        all_exec_msgs.sort();
+        for msg in all_exec_msgs {
+            execute_messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: msg.contract.to_string(),
                 msg: msg.msg,
                 funds: vec![],
             }));
         }
-    } else {
+    }
+
+    let mut migration_messages: Vec<CosmosMsg> = vec![];
+    if let Some(mut all_migrate_msgs) = a_poll.migrate_data {
+        all_migrate_msgs.sort();
+        for msg in all_migrate_msgs {
+            migration_messages.push(CosmosMsg::Wasm(WasmMsg::Migrate {
+                contract_addr: msg.contract.to_string(),
+                new_code_id: msg.new_code_id,
+                msg: msg.msg,
+            }));
+        }
+    }
+
+    if execute_messages.is_empty() && migration_messages.is_empty() {
         return Err(StdError::generic_err(
             "The poll does not have executable data",
         ));
     }
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        ("action", "execute_poll"),
-        ("poll_id", &poll_id.to_string()),
-    ]))
+    Ok(Response::new()
+        .add_messages(execute_messages)
+        .add_messages(migration_messages)
+        .add_attributes(vec![
+            ("action", "execute_poll"),
+            ("poll_id", &poll_id.to_string()),
+        ]))
 }
 
 /// Set the status of a poll to Failed if execute_poll fails

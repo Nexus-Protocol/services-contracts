@@ -81,6 +81,7 @@ pub enum Cw20HookMsg {
         description: String,
         link: Option<String>,
         execute_msgs: Option<Vec<PollExecuteMsg>>,
+        migrate_msgs: Option<Vec<PollMigrateMsg>>,
     },
 }
 
@@ -90,6 +91,15 @@ pub struct PollExecuteMsg {
     pub order: u64,
     pub contract: String,
     pub msg: Binary,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct PollMigrateMsg {
+    pub order: u64,
+    pub contract: String,
+    pub msg: Binary,
+    pub new_code_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
