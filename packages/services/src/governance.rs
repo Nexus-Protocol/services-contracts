@@ -74,7 +74,7 @@ pub enum GovernanceMsg {
 pub enum Cw20HookMsg {
     /// StakeVotingTokens a user can stake their psi token to receive rewards
     /// or to vote on polls
-    StakeVotingTokens,
+    StakeVotingTokens {},
     /// CreatePoll need to receive deposit from a proposer
     CreatePoll {
         title: String,

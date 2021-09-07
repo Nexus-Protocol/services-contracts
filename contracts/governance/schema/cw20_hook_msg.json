@@ -3,10 +3,17 @@
   "title": "Cw20HookMsg",
   "anyOf": [
     {
-      "type": "string",
-      "enum": [
+      "description": "StakeVotingTokens a user can stake their psi token to receive rewards or to vote on polls",
+      "type": "object",
+      "required": [
         "stake_voting_tokens"
-      ]
+      ],
+      "properties": {
+        "stake_voting_tokens": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     },
     {
       "description": "CreatePoll need to receive deposit from a proposer",

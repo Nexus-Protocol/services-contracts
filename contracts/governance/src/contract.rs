@@ -144,7 +144,7 @@ pub fn receive_cw20(
 
     let real_sender = Addr::unchecked(cw20_msg.sender);
     match from_binary(&cw20_msg.msg) {
-        Ok(Cw20HookMsg::StakeVotingTokens) => {
+        Ok(Cw20HookMsg::StakeVotingTokens {}) => {
             commands::stake_voting_tokens(deps, env, info, &config, real_sender, cw20_msg.amount)
         }
         Ok(Cw20HookMsg::CreatePoll {
