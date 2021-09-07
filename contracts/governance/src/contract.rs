@@ -172,8 +172,8 @@ pub fn receive_cw20(
 #[entry_point]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config => to_binary(&queries::query_config(deps)?),
-        QueryMsg::State => to_binary(&queries::query_state(deps)?),
+        QueryMsg::Config {} => to_binary(&queries::query_config(deps)?),
+        QueryMsg::State {} => to_binary(&queries::query_state(deps)?),
         QueryMsg::Staker { address } => to_binary(&queries::query_staker(deps, env, address)?),
         QueryMsg::Poll { poll_id } => to_binary(&queries::query_poll(deps, poll_id)?),
         QueryMsg::Polls {

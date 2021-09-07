@@ -2423,7 +2423,7 @@ fn update_config() {
     assert!(execute_res.messages.is_empty());
 
     // it worked, let's query the state
-    let res = query(deps.as_ref(), mock_env(), QueryMsg::Config).unwrap();
+    let res = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let config: ConfigResponse = from_binary(&res).unwrap();
     assert_eq!("addr0001", config.owner.as_str());
     assert_eq!(Decimal::percent(DEFAULT_QUORUM), config.quorum);
