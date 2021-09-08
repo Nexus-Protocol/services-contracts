@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-    Storage, SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, BlockInfo, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 use services::governance::{
     ExecuteMsg, PollExecuteMsg, PollMigrateMsg, PollStatus, VoteOption, VoterInfo, YourselfMsg,
@@ -169,13 +169,14 @@ pub fn create_poll(
         }
     };
 
+    let current_time = get_time(&env.block);
     let new_poll = Poll {
         id: poll_id,
         creator: proposer,
         status: PollStatus::InProgress,
         yes_votes: Uint128::zero(),
         no_votes: Uint128::zero(),
-        end_height: env.block.height + config.voting_period,
+        end_time: current_time + config.voting_period,
         title,
         description,
         link,
@@ -195,7 +196,7 @@ pub fn create_poll(
         ("action", "create_poll"),
         ("creator", &new_poll.creator.to_string()),
         ("poll_id", &poll_id.to_string()),
-        ("end_height", &new_poll.end_height.to_string()),
+        ("end_time", &new_poll.end_time.to_string()),
     ]))
 }
 
@@ -206,7 +207,8 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
         return Err(StdError::generic_err("Poll is not in progress"));
     }
 
-    if a_poll.end_height > env.block.height {
+    let current_time = get_time(&env.block);
+    if a_poll.end_time > current_time {
         return Err(StdError::generic_err("Voting period has not expired"));
     }
 
@@ -300,7 +302,8 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
         return Err(StdError::generic_err("Poll is not in passed status"));
     }
 
-    if a_poll.end_height + config.timelock_period > env.block.height {
+    let current_time = get_time(&env.block);
+    if a_poll.end_time + config.timelock_period > current_time {
         return Err(StdError::generic_err("Timelock period has not expired"));
     }
 
@@ -392,10 +395,11 @@ pub fn snapshot_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Respons
         return Err(StdError::generic_err("Poll is not in progress"));
     }
 
-    let time_to_end = a_poll.end_height - env.block.height;
+    let current_time = get_time(&env.block);
+    let time_to_end = a_poll.end_time - current_time;
 
     if time_to_end > config.snapshot_period {
-        return Err(StdError::generic_err("Cannot snapshot at this height"));
+        return Err(StdError::generic_err("Cannot snapshot at this time"));
     }
 
     if a_poll.staked_amount.is_some() {
@@ -434,7 +438,8 @@ pub fn cast_vote(
     }
 
     let mut a_poll = load_poll(deps.storage, poll_id)?;
-    if a_poll.status != PollStatus::InProgress || env.block.height > a_poll.end_height {
+    let current_time = get_time(&env.block);
+    if a_poll.status != PollStatus::InProgress || current_time > a_poll.end_time {
         return Err(StdError::generic_err("Poll is not in progress"));
     }
 
@@ -480,7 +485,7 @@ pub fn cast_vote(
     store_poll_voter(deps.storage, poll_id, &info.sender, &vote_info)?;
 
     // processing snapshot
-    let time_to_end = a_poll.end_height - env.block.height;
+    let time_to_end = a_poll.end_time - current_time;
 
     if time_to_end < config.snapshot_period && a_poll.staked_amount.is_none() {
         a_poll.staked_amount = Some(total_balance);
@@ -597,4 +602,8 @@ fn compute_locked_balance(
         .map(|(_, v)| v.balance.u128())
         .max()
         .unwrap_or_default())
+}
+
+fn get_time(block: &BlockInfo) -> u64 {
+    block.time.seconds()
 }

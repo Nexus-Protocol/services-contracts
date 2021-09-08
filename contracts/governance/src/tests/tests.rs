@@ -34,7 +34,7 @@ const TEST_VOTER_2: &str = "voter2";
 const TEST_VOTER_3: &str = "voter3";
 const DEFAULT_QUORUM: u64 = 30u64;
 const DEFAULT_THRESHOLD: u64 = 50u64;
-const DEFAULT_VOTING_PERIOD: u64 = 10000u64;
+const DEFAULT_VOTING_PERIOD: u64 = 20000u64;
 const DEFAULT_FIX_PERIOD: u64 = 10u64;
 const DEFAULT_TIMELOCK_PERIOD: u64 = 10000u64;
 const DEFAULT_PROPOSAL_DEPOSIT: u128 = 10000000000u128;
@@ -339,7 +339,7 @@ fn happy_days_create_poll() {
     let handle_res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_create_poll_result(
         1,
-        env.block.height + DEFAULT_VOTING_PERIOD,
+        env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD).seconds(),
         TEST_CREATOR,
         handle_res,
         &deps,
@@ -350,7 +350,7 @@ fn happy_days_create_poll() {
 fn query_polls() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
@@ -419,7 +419,7 @@ fn query_polls() {
                 id: 1u64,
                 creator: TEST_CREATOR.to_string(),
                 status: PollStatus::InProgress,
-                end_height: 10000u64,
+                end_time: DEFAULT_VOTING_PERIOD,
                 title: "test".to_string(),
                 description: "test".to_string(),
                 link: Some("http://google.com".to_string()),
@@ -434,7 +434,7 @@ fn query_polls() {
                 id: 2u64,
                 creator: TEST_CREATOR.to_string(),
                 status: PollStatus::InProgress,
-                end_height: 10000u64,
+                end_time: DEFAULT_VOTING_PERIOD,
                 title: "test2".to_string(),
                 description: "test2".to_string(),
                 link: None,
@@ -466,7 +466,7 @@ fn query_polls() {
             id: 2u64,
             creator: TEST_CREATOR.to_string(),
             status: PollStatus::InProgress,
-            end_height: 10000u64,
+            end_time: DEFAULT_VOTING_PERIOD,
             title: "test2".to_string(),
             description: "test2".to_string(),
             link: None,
@@ -497,7 +497,7 @@ fn query_polls() {
             id: 1u64,
             creator: TEST_CREATOR.to_string(),
             status: PollStatus::InProgress,
-            end_height: 10000u64,
+            end_time: DEFAULT_VOTING_PERIOD,
             title: "test".to_string(),
             description: "test".to_string(),
             link: Some("http://google.com".to_string()),
@@ -528,7 +528,7 @@ fn query_polls() {
             id: 2u64,
             creator: TEST_CREATOR.to_string(),
             status: PollStatus::InProgress,
-            end_height: 10000u64,
+            end_time: DEFAULT_VOTING_PERIOD,
             title: "test2".to_string(),
             description: "test2".to_string(),
             link: None,
@@ -560,7 +560,7 @@ fn query_polls() {
 fn create_poll_no_quorum() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
     let msg = create_poll_msg("test", "test", None, None, None);
@@ -573,7 +573,7 @@ fn create_poll_no_quorum() {
 fn fails_end_poll_before_end_height() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
     let msg = create_poll_msg("test", "test", None, None, None);
@@ -583,7 +583,7 @@ fn fails_end_poll_before_end_height() {
 
     let res = query(deps.as_ref(), env.clone(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let value: PollResponse = from_binary(&res).unwrap();
-    assert_eq!(DEFAULT_VOTING_PERIOD, value.end_height);
+    assert_eq!(DEFAULT_VOTING_PERIOD, value.end_time);
 
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::EndPoll { poll_id: 1 },
@@ -656,7 +656,11 @@ fn happy_days_end_poll() {
 
     assert_create_poll_result(
         1,
-        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        creator_env
+            .block
+            .time
+            .plus_seconds(DEFAULT_VOTING_PERIOD)
+            .seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -727,7 +731,7 @@ fn happy_days_end_poll() {
     }
 
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
 
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::EndPoll { poll_id: 1 },
@@ -788,7 +792,7 @@ fn happy_days_end_poll() {
         _ => panic!("DO NOT ENTER HERE"),
     }
 
-    creator_env.block.height = &creator_env.block.height + DEFAULT_TIMELOCK_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_TIMELOCK_PERIOD);
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::ExecutePoll { poll_id: 1 },
     };
@@ -983,7 +987,11 @@ fn fail_poll() {
 
     assert_create_poll_result(
         1,
-        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        creator_env
+            .block
+            .time
+            .plus_seconds(DEFAULT_VOTING_PERIOD)
+            .seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -1037,8 +1045,7 @@ fn fail_poll() {
         ]
     );
 
-    // Poll is not in passed status
-    creator_env.block.height = &creator_env.block.height + DEFAULT_TIMELOCK_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
 
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::EndPoll { poll_id: 1 },
@@ -1074,7 +1081,7 @@ fn fail_poll() {
     );
 
     // Execute Poll should send submsg ExecutePollMsgs
-    creator_env.block.height += DEFAULT_TIMELOCK_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_TIMELOCK_PERIOD);
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::ExecutePoll { poll_id: 1 },
     };
@@ -1206,7 +1213,11 @@ fn end_poll_zero_quorum() {
     .unwrap();
     assert_create_poll_result(
         1,
-        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        creator_env
+            .block
+            .time
+            .plus_seconds(DEFAULT_VOTING_PERIOD)
+            .seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -1232,7 +1243,7 @@ fn end_poll_zero_quorum() {
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::EndPoll { poll_id: 1 },
     };
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
 
     let execute_res = execute(
@@ -1320,7 +1331,15 @@ fn end_poll_quorum_rejected() {
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr(
+                "end_time",
+                creator_env
+                    .block
+                    .time
+                    .plus_seconds(DEFAULT_VOTING_PERIOD)
+                    .seconds()
+                    .to_string()
+            ),
         ]
     );
 
@@ -1376,7 +1395,7 @@ fn end_poll_quorum_rejected() {
     };
 
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
 
     let execute_res = execute(deps.as_mut(), creator_env, info.clone(), msg.clone()).unwrap();
     assert_eq!(
@@ -1411,7 +1430,15 @@ fn end_poll_quorum_rejected_noting_staked() {
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr(
+                "end_time",
+                creator_env
+                    .block
+                    .time
+                    .plus_seconds(DEFAULT_VOTING_PERIOD)
+                    .seconds()
+                    .to_string()
+            ),
         ]
     );
 
@@ -1419,7 +1446,7 @@ fn end_poll_quorum_rejected_noting_staked() {
         anyone_msg: AnyoneMsg::EndPoll { poll_id: 1 },
     };
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
 
     let execute_res = execute(
         deps.as_mut(),
@@ -1463,7 +1490,15 @@ fn end_poll_nay_rejected() {
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr(
+                "end_time",
+                creator_env
+                    .block
+                    .time
+                    .plus_seconds(DEFAULT_VOTING_PERIOD)
+                    .seconds()
+                    .to_string()
+            ),
         ]
     );
 
@@ -1533,7 +1568,7 @@ fn end_poll_nay_rejected() {
     };
 
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
     let execute_res = execute(
         deps.as_mut(),
         creator_env.clone(),
@@ -1556,7 +1591,7 @@ fn end_poll_nay_rejected() {
 fn fails_cast_vote_not_enough_staked() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(VOTING_TOKEN, &vec![]);
 
     let msg = create_poll_msg("test", "test", None, None, None);
@@ -1583,7 +1618,7 @@ fn fails_cast_vote_not_enough_staked() {
     let execute_res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
     assert_stake_tokens_result(10, DEFAULT_PROPOSAL_DEPOSIT, 10, 1, execute_res, &deps);
 
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(TEST_VOTER, &coins(11, VOTING_TOKEN));
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::CastVote {
@@ -1609,7 +1644,7 @@ fn happy_days_cast_vote() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
 
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(VOTING_TOKEN, &vec![]);
     let msg = create_poll_msg("test", "test", None, None, None);
 
@@ -1893,7 +1928,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             status: PollStatus::InProgress,
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
-            end_height: 0u64,
+            end_time: 0u64,
             title: "title".to_string(),
             description: "description".to_string(),
             deposit_amount: Uint128::zero(),
@@ -1915,7 +1950,7 @@ fn withdraw_voting_tokens_remove_not_in_progress_poll_voter_info() {
             status: PollStatus::Passed,
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
-            end_height: 0u64,
+            end_time: 0u64,
             title: "title".to_string(),
             description: "description".to_string(),
             deposit_amount: Uint128::zero(),
@@ -2083,7 +2118,7 @@ fn fails_cast_vote_twice() {
 
     assert_create_poll_result(
         1,
-        env.block.height + DEFAULT_VOTING_PERIOD,
+        env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD).seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -2329,7 +2364,7 @@ fn share_calculation() {
 // helper to confirm the expected create_poll response
 fn assert_create_poll_result(
     poll_id: u64,
-    end_height: u64,
+    end_time: u64,
     creator: &str,
     handle_res: Response,
     deps: &OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
@@ -2340,7 +2375,7 @@ fn assert_create_poll_result(
             attr("action", "create_poll"),
             attr("creator", creator),
             attr("poll_id", poll_id.to_string()),
-            attr("end_height", end_height.to_string()),
+            attr("end_time", end_time.to_string()),
         ]
     );
 
@@ -2531,7 +2566,7 @@ fn add_several_execute_msgs() {
     let execute_res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
     assert_create_poll_result(
         1,
-        env.block.height + DEFAULT_VOTING_PERIOD,
+        env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD).seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -2670,7 +2705,11 @@ fn execute_poll_with_order() {
 
     assert_create_poll_result(
         1,
-        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        creator_env
+            .block
+            .time
+            .plus_seconds(DEFAULT_VOTING_PERIOD)
+            .seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -2724,7 +2763,7 @@ fn execute_poll_with_order() {
     );
 
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
 
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::EndPoll { poll_id: 1 },
@@ -2768,7 +2807,7 @@ fn execute_poll_with_order() {
         )],
     )]);
 
-    creator_env.block.height = &creator_env.block.height + DEFAULT_TIMELOCK_PERIOD;
+    creator_env.block.time = creator_env.block.time.plus_seconds(DEFAULT_TIMELOCK_PERIOD);
     let msg = ExecuteMsg::Anyone {
         anyone_msg: AnyoneMsg::ExecutePoll { poll_id: 1 },
     };
@@ -2873,13 +2912,15 @@ fn snapshot_poll() {
         msg.clone(),
     )
     .unwrap();
+
+    let poll_end_time = creator_env.block.time.plus_seconds(DEFAULT_VOTING_PERIOD);
     assert_eq!(
         execute_res.attributes,
         vec![
             attr("action", "create_poll"),
             attr("creator", TEST_CREATOR),
             attr("poll_id", "1"),
-            attr("end_height", "22345"),
+            attr("end_time", poll_end_time.seconds().to_string()),
         ]
     );
 
@@ -2894,12 +2935,12 @@ fn snapshot_poll() {
     )
     .unwrap_err();
     assert_eq!(
-        StdError::generic_err("Cannot snapshot at this height",),
+        StdError::generic_err("Cannot snapshot at this time",),
         snapshot_err
     );
 
     // change time
-    creator_env.block.height = 22345 - 10;
+    creator_env.block.time = poll_end_time.minus_seconds(10);
 
     deps.querier.with_token_balances(&[(
         &VOTING_TOKEN.to_string(),
@@ -2949,7 +2990,7 @@ fn happy_days_cast_vote_with_snapshot() {
     let mut deps = mock_dependencies(&[]);
     mock_init(&mut deps);
 
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(VOTING_TOKEN, &vec![]);
     let msg = create_poll_msg("test", "test", None, None, None);
 
@@ -2976,7 +3017,7 @@ fn happy_days_cast_vote_with_snapshot() {
     assert_stake_tokens_result(11, DEFAULT_PROPOSAL_DEPOSIT, 11, 1, execute_res, &deps);
 
     //cast_vote without snapshot
-    let env = mock_env_height(0, 10000);
+    let env = mock_env_height(0, 0);
     let info = mock_info(TEST_VOTER, &coins(11, VOTING_TOKEN));
     let amount = 10u128;
 
@@ -3003,7 +3044,7 @@ fn happy_days_cast_vote_with_snapshot() {
     let res = query(deps.as_ref(), mock_env(), QueryMsg::Poll { poll_id: 1 }).unwrap();
     let value: PollResponse = from_binary(&res).unwrap();
     assert_eq!(value.staked_amount, None);
-    let end_height = value.end_height;
+    let end_time = value.end_time;
 
     //cast another vote
     let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
@@ -3024,7 +3065,7 @@ fn happy_days_cast_vote_with_snapshot() {
             amount: Uint128::from(10u128),
         },
     };
-    let env = mock_env_height(end_height - 9, 10000);
+    let env = mock_env_height(0, end_time - 9);
     let info = mock_info(TEST_VOTER_2, &[]);
     let execute_res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_cast_vote_success(TEST_VOTER_2, amount, 1, VoteOption::Yes, execute_res);
@@ -3074,7 +3115,7 @@ fn happy_days_cast_vote_with_snapshot() {
             amount: Uint128::from(10u128),
         },
     };
-    let env = mock_env_height(end_height - 8, 10000);
+    let env = mock_env_height(0, end_time - 8);
     let info = mock_info(TEST_VOTER_3, &[]);
     let execute_res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     assert_cast_vote_success(TEST_VOTER_3, amount, 1, VoteOption::Yes, execute_res);
@@ -3086,14 +3127,14 @@ fn happy_days_cast_vote_with_snapshot() {
 
 #[test]
 fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
-    const POLL_START_HEIGHT: u64 = 1000;
+    const POLL_START_TIME: u64 = 1000;
     const POLL_ID: u64 = 1;
     let stake_amount = 1000;
 
     let mut deps = mock_dependencies(&coins(1000, VOTING_TOKEN));
     mock_init(&mut deps);
 
-    let mut creator_env = mock_env_height(POLL_START_HEIGHT, 10000);
+    let mut creator_env = mock_env_height(0, POLL_START_TIME);
     let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
@@ -3127,7 +3168,11 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
 
     assert_create_poll_result(
         1,
-        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        creator_env
+            .block
+            .time
+            .plus_seconds(DEFAULT_VOTING_PERIOD)
+            .seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -3166,7 +3211,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
             amount: Uint128::from(stake_amount),
         },
     };
-    let env = mock_env_height(POLL_START_HEIGHT, 10000);
+    let env = mock_env_height(0, POLL_START_TIME);
     let info = mock_info(TEST_VOTER, &[]);
     let execute_res = execute(deps.as_mut(), env, info, msg).unwrap();
 
@@ -3181,7 +3226,10 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
         ]
     );
 
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD - 10;
+    creator_env.block.time = creator_env
+        .block
+        .time
+        .plus_seconds(DEFAULT_VOTING_PERIOD - 10);
 
     // did not SnapshotPoll
 
@@ -3229,7 +3277,7 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
     );
 
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
-    creator_env.block.height += 10;
+    creator_env.block.time = creator_env.block.time.plus_seconds(10);
 
     // quorum must reach
     let msg = ExecuteMsg::Anyone {
@@ -3263,14 +3311,14 @@ fn fails_end_poll_quorum_inflation_without_snapshot_poll() {
 
 #[test]
 fn happy_days_end_poll_with_controlled_quorum() {
-    const POLL_START_HEIGHT: u64 = 1000;
+    const POLL_START_TIME: u64 = 1000;
     const POLL_ID: u64 = 1;
     let stake_amount = 1000;
 
     let mut deps = mock_dependencies(&coins(1000, VOTING_TOKEN));
     mock_init(&mut deps);
 
-    let mut creator_env = mock_env_height(POLL_START_HEIGHT, 10000);
+    let mut creator_env = mock_env_height(0, POLL_START_TIME);
     let mut creator_info = mock_info(VOTING_TOKEN, &coins(2, VOTING_TOKEN));
 
     let exec_msg_bz = to_binary(&Cw20ExecuteMsg::Burn {
@@ -3304,7 +3352,11 @@ fn happy_days_end_poll_with_controlled_quorum() {
 
     assert_create_poll_result(
         1,
-        creator_env.block.height + DEFAULT_VOTING_PERIOD,
+        creator_env
+            .block
+            .time
+            .plus_seconds(DEFAULT_VOTING_PERIOD)
+            .seconds(),
         TEST_CREATOR,
         execute_res,
         &deps,
@@ -3343,7 +3395,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
             amount: Uint128::from(stake_amount),
         },
     };
-    let env = mock_env_height(POLL_START_HEIGHT, 10000);
+    let env = mock_env_height(0, POLL_START_TIME);
     let info = mock_info(TEST_VOTER, &[]);
     let execute_res = execute(deps.as_mut(), env, info, msg).unwrap();
 
@@ -3358,7 +3410,10 @@ fn happy_days_end_poll_with_controlled_quorum() {
         ]
     );
 
-    creator_env.block.height = &creator_env.block.height + DEFAULT_VOTING_PERIOD - 10;
+    creator_env.block.time = creator_env
+        .block
+        .time
+        .plus_seconds(DEFAULT_VOTING_PERIOD - 10);
 
     // send SnapshotPoll
     let fix_res = execute(
@@ -3423,7 +3478,7 @@ fn happy_days_end_poll_with_controlled_quorum() {
     );
 
     creator_info.sender = Addr::unchecked(TEST_CREATOR);
-    creator_env.block.height += 10;
+    creator_env.block.time = creator_env.block.time.plus_seconds(10);
 
     // quorum must reach
     let msg = ExecuteMsg::Anyone {
