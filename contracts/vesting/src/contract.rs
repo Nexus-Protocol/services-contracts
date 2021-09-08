@@ -12,8 +12,8 @@ use crate::state::{
 use cw20::Cw20ExecuteMsg;
 use services::common::OrderBy;
 use services::vesting::{
-    ClaimableAmountResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, VestingAccount,
-    VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
+    ClaimableAmountResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    VestingAccount, VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -314,4 +314,9 @@ fn test_assert_vesting_schedules() {
         }
         _ => panic!("DO NOT ENTER HERE"),
     }
+}
+
+#[entry_point]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

@@ -59,3 +59,6 @@ pub struct LatestStageResponse {
 pub struct IsClaimedResponse {
     pub is_claimed: bool,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

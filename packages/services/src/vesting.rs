@@ -97,3 +97,6 @@ pub struct ClaimableAmountResponse {
     pub address: String,
     pub claimable_amount: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

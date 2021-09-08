@@ -5,7 +5,7 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use services::airdrop::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
-    MerkleRootResponse, QueryMsg,
+    MerkleRootResponse, MigrateMsg, QueryMsg,
 };
 
 fn main() {
@@ -21,4 +21,5 @@ fn main() {
     export_schema(&schema_for!(MerkleRootResponse), &out_dir);
     export_schema(&schema_for!(LatestStageResponse), &out_dir);
     export_schema(&schema_for!(IsClaimedResponse), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
 }
