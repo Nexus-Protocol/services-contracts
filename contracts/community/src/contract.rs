@@ -10,7 +10,7 @@ use cosmwasm_std::{
     entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
-use services::community::{ExecuteMsg, GovernanceMsg, InstantiateMsg, QueryMsg};
+use services::community::{ExecuteMsg, GovernanceMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 #[entry_point]
 pub fn instantiate(
@@ -63,4 +63,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&queries::query_config(deps)?),
     }
+}
+
+#[entry_point]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

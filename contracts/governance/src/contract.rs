@@ -11,7 +11,8 @@ use cosmwasm_std::{
 
 use cw20::Cw20ReceiveMsg;
 use services::governance::{
-    AnyoneMsg, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg, QueryMsg, YourselfMsg,
+    AnyoneMsg, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    YourselfMsg,
 };
 
 pub(crate) const MIN_TITLE_LENGTH: usize = 4;
@@ -201,4 +202,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order_by,
         )?),
     }
+}
+
+#[entry_point]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

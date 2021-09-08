@@ -14,7 +14,7 @@ use cw20::Cw20ExecuteMsg;
 use hex;
 use services::airdrop::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
-    MerkleRootResponse, QueryMsg,
+    MerkleRootResponse, MigrateMsg, QueryMsg,
 };
 use sha3::Digest;
 use std::convert::TryInto;
@@ -233,4 +233,9 @@ pub fn query_is_claimed(deps: Deps, stage: u8, address: String) -> StdResult<IsC
     };
 
     Ok(resp)
+}
+
+#[entry_point]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

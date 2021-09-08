@@ -92,3 +92,6 @@ pub struct StakerInfoResponse {
     pub bond_amount: Uint128,
     pub pending_reward: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

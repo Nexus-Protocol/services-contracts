@@ -3,7 +3,7 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use services::governance::{
-    AnyoneMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg,
+    AnyoneMsg, ConfigResponse, Cw20HookMsg, ExecuteMsg, GovernanceMsg, InstantiateMsg, MigrateMsg,
     PollCountResponse, PollExecuteMsg, PollResponse, PollStatus, PollsResponse, QueryMsg,
     StakerResponse, StateResponse, VoteOption, VoterInfo, VotersResponse, VotersResponseItem,
 };
@@ -32,4 +32,5 @@ fn main() {
     export_schema(&schema_for!(VoterInfo), &out_dir);
     export_schema(&schema_for!(PollStatus), &out_dir);
     export_schema(&schema_for!(VoteOption), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
 }

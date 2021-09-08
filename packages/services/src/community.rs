@@ -41,3 +41,6 @@ pub struct ConfigResponse {
     pub psi_token_addr: String,
     pub spend_limit: Uint128,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
