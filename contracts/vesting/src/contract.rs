@@ -2,8 +2,8 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, Api, Binary, BlockInfo, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 
 use crate::state::{
@@ -127,7 +127,7 @@ pub fn register_vesting_accounts(
 }
 
 pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
-    let current_time = env.block.time.nanos() / 1_000_000_000;
+    let current_time = get_time(&env.block);
     let address = info.sender;
     let address_raw = deps.api.addr_canonicalize(&address.to_string())?;
 
@@ -269,7 +269,7 @@ pub fn query_claimable_amount(
     address: String,
 ) -> StdResult<ClaimableAmountResponse> {
     let info = read_vesting_info(deps.storage, &deps.api.addr_canonicalize(&address)?)?;
-    let current_time = env.block.time.nanos() / 1_000_000_000;
+    let current_time = get_time(&env.block);
     let claimable_amount = compute_claim_amount(current_time, &info);
     let resp = ClaimableAmountResponse {
         address,
@@ -277,6 +277,10 @@ pub fn query_claimable_amount(
     };
 
     Ok(resp)
+}
+
+fn get_time(block: &BlockInfo) -> u64 {
+    block.time.seconds()
 }
 
 #[test]
