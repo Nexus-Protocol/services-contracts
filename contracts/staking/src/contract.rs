@@ -2,8 +2,9 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Api, Binary, BlockInfo, CanonicalAddr, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Response, StdError, StdResult, Storage, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Addr, Api, Attribute, Binary, BlockInfo, CanonicalAddr, Coin,
+    Decimal, Deps, DepsMut, Env, MessageInfo, QuerierWrapper, Response, StdError, StdResult,
+    Storage, Uint128, WasmMsg,
 };
 
 use services::staking::{
@@ -18,6 +19,10 @@ use crate::state::{
 
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
+use terraswap::asset::{Asset, AssetInfo, PairInfo};
+use terraswap::pair::ExecuteMsg as PairExecuteMsg;
+use terraswap::querier::{query_pair_info, query_token_balance};
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -31,6 +36,7 @@ pub fn instantiate(
             owner: deps.api.addr_canonicalize(&msg.owner)?,
             psi_token: deps.api.addr_canonicalize(&msg.psi_token)?,
             staking_token: deps.api.addr_canonicalize(&msg.staking_token)?,
+            terraswap_factory: deps.api.addr_canonicalize(&msg.terraswap_factory)?,
             distribution_schedule: msg.distribution_schedule,
         },
     )?;
@@ -66,6 +72,25 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => {
             assert_owner_privilege(deps.storage, deps.api, info.sender)?;
             migrate_staking(deps, env, new_staking_contract)
+        }
+
+        ExecuteMsg::AutoStake {
+            assets,
+            slippage_tolerance,
+        } => auto_stake(deps, env, info, assets, slippage_tolerance),
+
+        ExecuteMsg::AutoStakeHook {
+            staker_addr,
+            prev_staking_token_amount,
+        } => {
+            let api = deps.api;
+            auto_stake_hook(
+                deps,
+                env,
+                info,
+                api.addr_validate(&staker_addr)?,
+                prev_staking_token_amount,
+            )
         }
     }
 }
@@ -121,7 +146,7 @@ pub fn bond(deps: DepsMut, env: Env, sender_addr: Addr, amount: Uint128) -> StdR
 
     Ok(Response::new().add_attributes(vec![
         ("action", "bond"),
-        ("owner", &sender_addr.to_string()),
+        ("staker_addr", &sender_addr.to_string()),
         ("amount", &amount.to_string()),
     ]))
 }
@@ -167,7 +192,7 @@ pub fn unbond(deps: DepsMut, env: Env, info: MessageInfo, amount: Uint128) -> St
         })
         .add_attributes(vec![
             ("action", "unbond"),
-            ("owner", &info.sender.to_string()),
+            ("staker_addr", &info.sender.to_string()),
             ("amount", &amount.to_string()),
         ]))
 }
@@ -367,6 +392,197 @@ fn compute_staker_reward(state: &State, staker_info: &mut StakerInfo) -> StdResu
     Ok(())
 }
 
+pub fn auto_stake(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    assets: [Asset; 2],
+    slippage_tolerance: Option<Decimal>,
+) -> StdResult<Response> {
+    let config: Config = read_config(deps.storage)?;
+    let terraswap_factory: Addr = deps.api.addr_humanize(&config.terraswap_factory)?;
+
+    // query pair info to obtain pair contract address
+    let asset_infos: [AssetInfo; 2] = [assets[0].info.clone(), assets[1].info.clone()];
+    let terraswap_pair: PairInfo = query_pair_info(&deps.querier, terraswap_factory, &asset_infos)?;
+
+    if config.staking_token
+        != deps
+            .api
+            .addr_canonicalize(terraswap_pair.liquidity_token.as_str())?
+    {
+        return Err(StdError::generic_err("Invalid staking token"));
+    }
+
+    // get current lp token amount to later compute the recived amount
+    let prev_staking_token_amount = query_token_balance(
+        &deps.querier,
+        deps.api.addr_validate(&terraswap_pair.liquidity_token)?,
+        env.contract.address.clone(),
+    )?;
+
+    let asset_0_messages = asset_transfer_and_increase_allowance(
+        &assets[0],
+        &info,
+        &env,
+        terraswap_pair.contract_addr.to_string(),
+    )?;
+    let asset_1_messages = asset_transfer_and_increase_allowance(
+        &assets[1],
+        &info,
+        &env,
+        terraswap_pair.contract_addr.to_string(),
+    )?;
+    let (provide_liquidity_message, attributes) = assets_provide_liquidity_message(
+        assets,
+        terraswap_pair.contract_addr.to_string(),
+        slippage_tolerance,
+        &deps.querier,
+    )?;
+
+    // 1. Transfer token asset to staking contract
+    // 2. Increase allowance of token for pair contract
+    // 3. Provide liquidity
+    // 4. Execute staking hook, will stake in the name of the sender
+    Ok(Response::new()
+        .add_messages(asset_0_messages)
+        .add_messages(asset_1_messages)
+        .add_message(provide_liquidity_message)
+        .add_messages(vec![WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::AutoStakeHook {
+                staker_addr: info.sender.to_string(),
+                prev_staking_token_amount,
+            })?,
+            funds: vec![],
+        }])
+        .add_attribute("action", "auto_stake")
+        .add_attributes(attributes))
+}
+
+fn asset_transfer_and_increase_allowance(
+    asset: &Asset,
+    info: &MessageInfo,
+    env: &Env,
+    pair_contract_addr: String,
+) -> StdResult<Vec<WasmMsg>> {
+    match &asset.info {
+        AssetInfo::Token {
+            contract_addr: token_addr,
+        } => Ok(vec![
+            WasmMsg::Execute {
+                contract_addr: token_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                    owner: info.sender.to_string(),
+                    recipient: env.contract.address.to_string(),
+                    amount: asset.amount,
+                })?,
+                funds: vec![],
+            },
+            WasmMsg::Execute {
+                contract_addr: token_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::IncreaseAllowance {
+                    spender: pair_contract_addr,
+                    amount: asset.amount,
+                    expires: None,
+                })?,
+                funds: vec![],
+            },
+        ]),
+        AssetInfo::NativeToken { .. } => {
+            asset.assert_sent_native_token_balance(info)?;
+            Ok(vec![])
+        }
+    }
+}
+
+fn assets_provide_liquidity_message(
+    assets: [Asset; 2],
+    pair_contract_addr: String,
+    slippage_tolerance: Option<Decimal>,
+    querier: &QuerierWrapper,
+) -> StdResult<(WasmMsg, Vec<Attribute>)> {
+    let mut result_assets: Vec<Asset> = Vec::with_capacity(2);
+    let mut result_coins: Vec<Coin> = Vec::with_capacity(2);
+    let mut attributes: Vec<Attribute> = Vec::with_capacity(2);
+
+    for (index, asset) in assets.iter().enumerate() {
+        match &asset.info {
+            AssetInfo::Token {
+                contract_addr: token_addr,
+            } => {
+                result_assets.push(asset.clone());
+                attributes.push(attr(format!("asset_token_{}", index), token_addr));
+            }
+
+            AssetInfo::NativeToken { denom } => {
+                let tax_amount = asset.compute_tax(&querier)?;
+                let deducted_tax_amount = asset.amount.checked_sub(tax_amount)?;
+                result_assets.push(Asset {
+                    amount: deducted_tax_amount,
+                    info: asset.info.clone(),
+                });
+
+                result_coins.push(Coin {
+                    denom: denom.clone(),
+                    amount: deducted_tax_amount,
+                });
+                attributes.push(attr(format!("native_token_{}", index), denom));
+                attributes.push(attr(format!("tax_amount_{}", index), tax_amount));
+            }
+        }
+    }
+
+    if result_assets.len() != 2 {
+        return Err(StdError::generic_err("wrong number of assets"));
+    }
+
+    let asset_1 = result_assets
+        .pop()
+        .ok_or(StdError::generic_err("wrong number of assets"))?;
+    let asset_0 = result_assets
+        .pop()
+        .ok_or(StdError::generic_err("wrong number of assets"))?;
+
+    Ok((
+        WasmMsg::Execute {
+            contract_addr: pair_contract_addr.to_string(),
+            msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
+                assets: [asset_0, asset_1],
+                slippage_tolerance,
+                receiver: None,
+            })?,
+            funds: result_coins,
+        },
+        attributes,
+    ))
+}
+
+pub fn auto_stake_hook(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    staker_addr: Addr,
+    prev_staking_token_amount: Uint128,
+) -> StdResult<Response> {
+    // only can be called by itself
+    if info.sender != env.contract.address {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
+    let config: Config = read_config(deps.storage)?;
+
+    // stake all lp tokens received, compare with staking token amount before liquidity provision was executed
+    let current_staking_token_amount = query_token_balance(
+        &deps.querier,
+        deps.api.addr_humanize(&config.staking_token)?,
+        env.contract.address.clone(),
+    )?;
+    let amount_to_stake = current_staking_token_amount.checked_sub(prev_staking_token_amount)?;
+
+    bond(deps, env, staker_addr, amount_to_stake)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -385,6 +601,10 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         owner: deps.api.addr_humanize(&state.owner)?.to_string(),
         psi_token: deps.api.addr_humanize(&state.psi_token)?.to_string(),
         staking_token: deps.api.addr_humanize(&state.staking_token)?.to_string(),
+        terraswap_factory: deps
+            .api
+            .addr_humanize(&state.terraswap_factory)?
+            .to_string(),
         distribution_schedule: state.distribution_schedule,
     };
 

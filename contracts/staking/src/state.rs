@@ -14,6 +14,7 @@ static PREFIX_REWARD: &[u8] = b"reward";
 pub struct Config {
     pub owner: CanonicalAddr,
     pub psi_token: CanonicalAddr,
+    pub terraswap_factory: CanonicalAddr,
     pub staking_token: CanonicalAddr,
     pub distribution_schedule: Vec<StakingSchedule>,
 }
