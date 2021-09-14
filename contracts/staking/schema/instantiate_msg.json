@@ -6,7 +6,8 @@
     "distribution_schedule",
     "owner",
     "psi_token",
-    "staking_token"
+    "staking_token",
+    "terraswap_factory"
   ],
   "properties": {
     "distribution_schedule": {
@@ -22,6 +23,9 @@
       "type": "string"
     },
     "staking_token": {
+      "type": "string"
+    },
+    "terraswap_factory": {
       "type": "string"
     }
   },
