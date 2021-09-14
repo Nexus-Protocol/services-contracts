@@ -3,12 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
+use terraswap::asset::Asset;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub owner: String,
     pub psi_token: String,
     pub staking_token: String, // lp token of PSI-UST or nAsset-PSI pair contract
+    pub terraswap_factory: String,
     pub distribution_schedule: Vec<StakingSchedule>,
 }
 
@@ -21,6 +23,17 @@ pub enum ExecuteMsg {
     },
     /// Withdraw pending rewards
     Withdraw {},
+    /// Provides liquidity and automatically stakes the LP tokens
+    AutoStake {
+        assets: [Asset; 2],
+        slippage_tolerance: Option<Decimal>,
+    },
+    /// Hook to stake the minted LP tokens
+    AutoStakeHook {
+        staker_addr: String,
+        prev_staking_token_amount: Uint128,
+    },
+
     AddSchedules {
         schedules: Vec<StakingSchedule>,
     },
@@ -75,6 +88,7 @@ pub struct ConfigResponse {
     pub owner: String,
     pub psi_token: String,
     pub staking_token: String,
+    pub terraswap_factory: String,
     pub distribution_schedule: Vec<StakingSchedule>,
 }
 

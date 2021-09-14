@@ -43,6 +43,8 @@ cosmwasm-storage = { version = "0.16.1", features = ["iterator"] }
 services = { path = "../../packages/services", default-features = false, version = "1.0.0"}
 schemars = "0.8.1"
 serde = { version = "1.0.126", default-features = false, features = ["derive"] }
+terraswap = "2.4.0"
 
 [dev-dependencies]
 cosmwasm-schema = "0.16"
+terra-cosmwasm = { version = "2.2.0" }
