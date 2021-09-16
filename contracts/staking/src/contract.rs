@@ -504,7 +504,7 @@ fn assets_provide_liquidity_message(
 ) -> StdResult<(WasmMsg, Vec<Attribute>)> {
     let mut result_assets: Vec<Asset> = Vec::with_capacity(2);
     let mut result_coins: Vec<Coin> = Vec::with_capacity(2);
-    let mut attributes: Vec<Attribute> = Vec::with_capacity(2);
+    let mut attributes: Vec<Attribute> = Vec::with_capacity(4);
 
     for (index, asset) in assets.iter().enumerate() {
         match &asset.info {
