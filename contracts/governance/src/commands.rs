@@ -298,6 +298,12 @@ pub fn execute_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response
     let config: Config = load_config(deps.storage)?;
     let a_poll = load_poll(deps.storage, poll_id)?;
 
+    if !a_poll.contain_messages() {
+        return Err(StdError::generic_err(
+            "The poll does not have executable data",
+        ));
+    }
+
     if a_poll.status != PollStatus::Passed {
         return Err(StdError::generic_err("Poll is not in passed status"));
     }
@@ -352,12 +358,6 @@ pub fn execute_poll_messages(deps: DepsMut, poll_id: u64) -> StdResult<Response>
                 msg: msg.msg,
             }));
         }
-    }
-
-    if execute_messages.is_empty() && migration_messages.is_empty() {
-        return Err(StdError::generic_err(
-            "The poll does not have executable data",
-        ));
     }
 
     Ok(Response::new()
