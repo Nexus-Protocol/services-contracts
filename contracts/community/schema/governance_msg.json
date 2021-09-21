@@ -16,16 +16,6 @@
                 "string",
                 "null"
               ]
-            },
-            "spend_limit": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                },
-                {
-                  "type": "null"
-                }
-              ]
             }
           }
         }
