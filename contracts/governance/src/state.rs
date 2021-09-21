@@ -74,6 +74,23 @@ pub struct Poll {
     pub staked_amount: Option<Uint128>,
 }
 
+impl Poll {
+    pub fn contain_messages(&self) -> bool {
+        let execute_messages_is_empty = if let Some(data) = &self.execute_data {
+            data.is_empty()
+        } else {
+            true
+        };
+        let migration_messages_is_empty = if let Some(data) = &self.migrate_data {
+            data.is_empty()
+        } else {
+            true
+        };
+
+        return !execute_messages_is_empty || !migration_messages_is_empty;
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 pub struct ExecuteData {
     pub order: u64,
@@ -306,7 +323,8 @@ fn calc_range_end_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod test {
     use crate::state::VoterInfo;
-    use cosmwasm_std::testing::mock_dependencies;
+    use cosmwasm_std::{testing::mock_dependencies, to_binary};
+    use cw20::Cw20ExecuteMsg;
     use services::governance::VoteOption;
 
     use super::*;
@@ -718,5 +736,60 @@ mod test {
                 }
             }
         }
+    }
+
+    #[test]
+    fn poll_contain_messages_test() {
+        let mut poll = Poll::default();
+        poll.execute_data = None;
+        poll.migrate_data = None;
+        assert_eq!(poll.contain_messages(), false);
+
+        poll.migrate_data = None;
+        poll.execute_data = Some(vec![]);
+        assert_eq!(poll.contain_messages(), false);
+
+        poll.execute_data = None;
+        poll.migrate_data = Some(vec![]);
+        assert_eq!(poll.contain_messages(), false);
+
+        poll.execute_data = Some(vec![]);
+        poll.migrate_data = Some(vec![]);
+        assert_eq!(poll.contain_messages(), false);
+
+        poll.execute_data = Some(vec![]);
+        poll.migrate_data = Some(vec![]);
+        assert_eq!(poll.contain_messages(), false);
+
+        let exec_msg = ExecuteData {
+            order: 1u64,
+            contract: Addr::unchecked("som_contract"),
+            msg: to_binary(&Cw20ExecuteMsg::Burn {
+                amount: Uint128::new(30),
+            })
+            .unwrap(),
+        };
+
+        let migrate_msg = MigrateData {
+            order: 1u64,
+            contract: Addr::unchecked("som_contract"),
+            msg: to_binary(&Cw20ExecuteMsg::Burn {
+                amount: Uint128::new(30),
+            })
+            .unwrap(),
+            new_code_id: 11,
+        };
+
+        poll.execute_data = Some(vec![exec_msg.clone()]);
+        poll.migrate_data = None;
+        assert_eq!(poll.contain_messages(), true);
+
+        poll.execute_data = None;
+        poll.migrate_data = Some(vec![migrate_msg.clone()]);
+        assert_eq!(poll.contain_messages(), true);
+
+        poll.execute_data = Some(vec![exec_msg]);
+        poll.migrate_data = Some(vec![migrate_msg]);
+        assert_eq!(poll.contain_messages(), true);
     }
 }
