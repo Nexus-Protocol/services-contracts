@@ -22,7 +22,6 @@ pub fn instantiate(
     let config = Config {
         governance_contract: deps.api.addr_validate(&msg.governance_contract_addr)?,
         psi_token: deps.api.addr_validate(&msg.psi_token_addr)?,
-        spend_limit: msg.spend_limit,
     };
 
     store_config(deps.storage, &config)?;
@@ -47,8 +46,7 @@ pub fn execute(
             match governance_msg {
                 GovernanceMsg::UpdateConfig {
                     governance_contract_addr,
-                    spend_limit,
-                } => commands::update_config(deps, config, governance_contract_addr, spend_limit),
+                } => commands::update_config(deps, config, governance_contract_addr),
 
                 GovernanceMsg::Spend { recipient, amount } => {
                     commands::spend(deps, config, recipient, amount)
