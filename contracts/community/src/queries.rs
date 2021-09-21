@@ -9,6 +9,5 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     Ok(ConfigResponse {
         governance_contract_addr: config.governance_contract.to_string(),
         psi_token_addr: config.psi_token.to_string(),
-        spend_limit: config.spend_limit,
     })
 }

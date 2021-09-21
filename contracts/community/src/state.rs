@@ -2,7 +2,7 @@ use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, StdResult, Storage};
 
 static KEY_CONFIG: Item<Config> = Item::new("config");
 
@@ -10,7 +10,6 @@ static KEY_CONFIG: Item<Config> = Item::new("config");
 pub struct Config {
     pub governance_contract: Addr,
     pub psi_token: Addr,
-    pub spend_limit: Uint128,
 }
 
 pub fn load_config(storage: &dyn Storage) -> StdResult<Config> {

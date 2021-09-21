@@ -7,7 +7,6 @@ use cosmwasm_std::Uint128;
 pub struct InstantiateMsg {
     pub governance_contract_addr: String,
     pub psi_token_addr: String,
-    pub spend_limit: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -21,7 +20,6 @@ pub enum ExecuteMsg {
 pub enum GovernanceMsg {
     UpdateConfig {
         governance_contract_addr: Option<String>,
-        spend_limit: Option<Uint128>,
     },
     Spend {
         recipient: String,
@@ -39,7 +37,6 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub governance_contract_addr: String,
     pub psi_token_addr: String,
-    pub spend_limit: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

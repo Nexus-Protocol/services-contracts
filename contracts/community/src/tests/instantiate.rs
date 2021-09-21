@@ -1,6 +1,5 @@
 use cosmwasm_std::testing::mock_dependencies;
 use cosmwasm_std::testing::{mock_env, mock_info};
-use cosmwasm_std::Uint128;
 use services::community::InstantiateMsg;
 
 use crate::state::{load_config, Config};
@@ -12,7 +11,6 @@ fn proper_initialization() {
     let msg = InstantiateMsg {
         governance_contract_addr: "addr0001".to_string(),
         psi_token_addr: "addr0002".to_string(),
-        spend_limit: Uint128::new(2000),
     };
 
     let env = mock_env();
@@ -22,5 +20,4 @@ fn proper_initialization() {
     let config: Config = load_config(deps.as_ref().storage).unwrap();
     assert_eq!(msg.governance_contract_addr, config.governance_contract);
     assert_eq!(msg.psi_token_addr, config.psi_token);
-    assert_eq!(msg.spend_limit, config.spend_limit);
 }

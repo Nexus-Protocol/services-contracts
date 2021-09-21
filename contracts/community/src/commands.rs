@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, DepsMut, Response, StdError, Uint128, WasmMsg};
+use cosmwasm_std::{to_binary, DepsMut, Response, Uint128, WasmMsg};
 
 use crate::{
     state::{store_config, Config},
@@ -10,14 +10,9 @@ pub fn update_config(
     deps: DepsMut,
     mut current_config: Config,
     governance_contract_addr: Option<String>,
-    spend_limit: Option<Uint128>,
 ) -> ContractResult<Response> {
     if let Some(ref governance_contract_addr) = governance_contract_addr {
         current_config.governance_contract = deps.api.addr_validate(governance_contract_addr)?;
-    }
-
-    if let Some(spend_limit) = spend_limit {
-        current_config.spend_limit = spend_limit;
     }
 
     store_config(deps.storage, &current_config)?;
@@ -33,10 +28,6 @@ pub fn spend(
     recipient: String,
     amount: Uint128,
 ) -> ContractResult<Response> {
-    if config.spend_limit < amount {
-        return Err(StdError::generic_err("Cannot spend more than spend_limit").into());
-    }
-
     Ok(Response::new()
         .add_message(WasmMsg::Execute {
             contract_addr: config.psi_token.to_string(),
