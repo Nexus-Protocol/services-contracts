@@ -486,3 +486,72 @@ fn claim_with_cliff() {
         }))],
     );
 }
+
+#[test]
+fn claim_with_cliff_equals_end_time() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InstantiateMsg {
+        owner: "owner".to_string(),
+        psi_token: "psi_token".to_string(),
+        genesis_time: 100u64,
+    };
+
+    let info = mock_info("addr0000", &[]);
+    let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: "addr0000".to_string(),
+            schedules: vec![VestingSchedule::new(
+                100u64,
+                200u64,
+                200u64,
+                Uint128::from(100u128),
+            )],
+        }],
+    };
+    let info = mock_info("owner", &[]);
+    let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    let info = mock_info("addr0000", &[]);
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(124);
+
+    let msg = ExecuteMsg::Claim {};
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "0"),
+            attr("last_claim_time", "124"),
+        ]
+    );
+    assert_eq!(res.messages, vec![]);
+
+    env.block.time = Timestamp::from_seconds(200);
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("action", "claim"),
+            attr("address", "addr0000"),
+            attr("claim_amount", "100"),
+            attr("last_claim_time", "200"),
+        ]
+    );
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "psi_token".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "addr0000".to_string(),
+                amount: Uint128::from(100u128),
+            })
+            .unwrap(),
+            funds: vec![],
+        }))],
+    );
+}
