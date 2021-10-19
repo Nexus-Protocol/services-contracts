@@ -39,6 +39,33 @@
         }
       }
     },
+    "PollMigrateMsg": {
+      "type": "object",
+      "required": [
+        "contract",
+        "msg",
+        "new_code_id",
+        "order"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string"
+        },
+        "msg": {
+          "$ref": "#/definitions/Binary"
+        },
+        "new_code_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "order": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
     "PollResponse": {
       "type": "object",
       "required": [
@@ -86,6 +113,15 @@
             "string",
             "null"
           ]
+        },
+        "migrate_data": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/PollMigrateMsg"
+          }
         },
         "no_votes": {
           "$ref": "#/definitions/Uint128"

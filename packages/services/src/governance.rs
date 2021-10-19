@@ -157,6 +157,7 @@ pub struct PollResponse {
     pub link: Option<String>,
     pub deposit_amount: Uint128,
     pub execute_data: Option<Vec<PollExecuteMsg>>,
+    pub migrate_data: Option<Vec<PollMigrateMsg>>,
     pub yes_votes: Uint128, // balance
     pub no_votes: Uint128,  // balance
     pub staked_amount: Option<Uint128>,
