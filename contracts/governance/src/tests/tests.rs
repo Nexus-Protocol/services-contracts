@@ -425,6 +425,7 @@ fn query_polls() {
                 link: Some("http://google.com".to_string()),
                 deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
                 execute_data: Some(execute_msgs.clone()),
+                migrate_data: None,
                 yes_votes: Uint128::zero(),
                 no_votes: Uint128::zero(),
                 staked_amount: None,
@@ -440,6 +441,7 @@ fn query_polls() {
                 link: None,
                 deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
                 execute_data: None,
+                migrate_data: None,
                 yes_votes: Uint128::zero(),
                 no_votes: Uint128::zero(),
                 staked_amount: None,
@@ -472,6 +474,7 @@ fn query_polls() {
             link: None,
             deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             execute_data: None,
+            migrate_data: None,
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
             staked_amount: None,
@@ -503,6 +506,7 @@ fn query_polls() {
             link: Some("http://google.com".to_string()),
             deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             execute_data: Some(execute_msgs),
+            migrate_data: None,
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
             staked_amount: None,
@@ -534,6 +538,7 @@ fn query_polls() {
             link: None,
             deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             execute_data: None,
+            migrate_data: None,
             yes_votes: Uint128::zero(),
             no_votes: Uint128::zero(),
             staked_amount: None,
@@ -2693,7 +2698,13 @@ fn execute_poll_with_order() {
         new_code_id: 11,
     });
 
-    let msg = create_poll_msg("test", "test", None, Some(execute_msgs), Some(migrate_msgs));
+    let msg = create_poll_msg(
+        "test",
+        "test",
+        None,
+        Some(execute_msgs.clone()),
+        Some(migrate_msgs.clone()),
+    );
 
     let execute_res = execute(
         deps.as_mut(),
@@ -2713,6 +2724,42 @@ fn execute_poll_with_order() {
         TEST_CREATOR,
         execute_res,
         &deps,
+    );
+
+    let query_res = query(
+        deps.as_ref(),
+        creator_env.clone(),
+        QueryMsg::Polls {
+            filter: None,
+            start_after: None,
+            limit: None,
+            order_by: Some(OrderBy::Desc),
+        },
+    )
+    .unwrap();
+    let query_response: PollsResponse = from_binary(&query_res).unwrap();
+    assert_eq!(
+        query_response.polls,
+        vec![PollResponse {
+            id: 1u64,
+            creator: TEST_CREATOR.to_string(),
+            status: PollStatus::InProgress,
+            end_time: creator_env
+                .block
+                .time
+                .plus_seconds(DEFAULT_VOTING_PERIOD)
+                .seconds(),
+            title: "test".to_string(),
+            description: "test".to_string(),
+            link: None,
+            deposit_amount: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
+            execute_data: Some(execute_msgs),
+            migrate_data: Some(migrate_msgs),
+            yes_votes: Uint128::zero(),
+            no_votes: Uint128::zero(),
+            staked_amount: None,
+            total_balance_at_end_poll: None,
+        }]
     );
 
     deps.querier.with_token_balances(&[(

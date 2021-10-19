@@ -2,8 +2,8 @@ use cosmwasm_std::{Deps, Env, StdError, StdResult, Uint128};
 use services::{
     common::OrderBy,
     governance::{
-        ConfigResponse, PollExecuteMsg, PollResponse, PollStatus, PollsResponse, StakerResponse,
-        StateResponse, VotersResponse, VotersResponseItem,
+        ConfigResponse, PollExecuteMsg, PollMigrateMsg, PollResponse, PollStatus, PollsResponse,
+        StakerResponse, StateResponse, VotersResponse, VotersResponseItem,
     },
 };
 
@@ -41,13 +41,25 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
 pub fn query_poll(deps: Deps, poll_id: u64) -> StdResult<PollResponse> {
     let poll = may_load_poll(deps.storage, poll_id)?;
     if let Some(poll) = poll {
-        let data_list: Option<Vec<PollExecuteMsg>> = poll.execute_data.map(|exe_msgs| {
+        let execute_messages: Option<Vec<PollExecuteMsg>> = poll.execute_data.map(|exe_msgs| {
             exe_msgs
                 .iter()
                 .map(|msg| PollExecuteMsg {
                     order: msg.order,
                     contract: msg.contract.to_string(),
                     msg: msg.msg.clone(),
+                })
+                .collect()
+        });
+
+        let migrate_messages: Option<Vec<PollMigrateMsg>> = poll.migrate_data.map(|migrate_msgs| {
+            migrate_msgs
+                .iter()
+                .map(|msg| PollMigrateMsg {
+                    order: msg.order,
+                    contract: msg.contract.to_string(),
+                    msg: msg.msg.clone(),
+                    new_code_id: msg.new_code_id,
                 })
                 .collect()
         });
@@ -61,7 +73,8 @@ pub fn query_poll(deps: Deps, poll_id: u64) -> StdResult<PollResponse> {
             description: poll.description,
             link: poll.link,
             deposit_amount: poll.deposit_amount,
-            execute_data: data_list,
+            execute_data: execute_messages,
+            migrate_data: migrate_messages,
             yes_votes: poll.yes_votes,
             no_votes: poll.no_votes,
             staked_amount: poll.staked_amount,
@@ -84,7 +97,7 @@ pub fn query_polls(
     let poll_responses: StdResult<Vec<PollResponse>> = polls
         .into_iter()
         .map(|poll| {
-            let data_list: Option<Vec<PollExecuteMsg>> = poll.execute_data.map(|exe_msgs| {
+            let execute_messages: Option<Vec<PollExecuteMsg>> = poll.execute_data.map(|exe_msgs| {
                 exe_msgs
                     .iter()
                     .map(|msg| PollExecuteMsg {
@@ -95,6 +108,19 @@ pub fn query_polls(
                     .collect()
             });
 
+            let migrate_messages: Option<Vec<PollMigrateMsg>> =
+                poll.migrate_data.map(|migrate_msgs| {
+                    migrate_msgs
+                        .iter()
+                        .map(|msg| PollMigrateMsg {
+                            order: msg.order,
+                            contract: msg.contract.to_string(),
+                            msg: msg.msg.clone(),
+                            new_code_id: msg.new_code_id,
+                        })
+                        .collect()
+                });
+
             Ok(PollResponse {
                 id: poll.id,
                 creator: poll.creator.to_string(),
@@ -104,7 +130,8 @@ pub fn query_polls(
                 description: poll.description.to_string(),
                 link: poll.link.clone(),
                 deposit_amount: poll.deposit_amount,
-                execute_data: data_list,
+                execute_data: execute_messages,
+                migrate_data: migrate_messages,
                 yes_votes: poll.yes_votes,
                 no_votes: poll.no_votes,
                 staked_amount: poll.staked_amount,
