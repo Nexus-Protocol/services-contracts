@@ -3,6 +3,7 @@ mod auto_staking;
 mod deposit_and_withdraw;
 mod instantiate;
 mod migrate_staking;
+mod queries;
 
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{

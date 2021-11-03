@@ -358,6 +358,10 @@ fn decrease_bond_amount(
 
 // compute distributed rewards and update global reward index
 fn compute_reward(config: &Config, state: &mut State, current_time: u64) {
+    if state.last_distributed >= current_time {
+        return;
+    }
+
     if state.total_bond_amount.is_zero() {
         state.last_distributed = current_time;
         return;
