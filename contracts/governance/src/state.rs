@@ -2,7 +2,7 @@ use cw_storage_plus::{Bound, Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Binary, Decimal, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Binary, Decimal, Order, StdResult, Storage, Uint128};
 use cw0::{calc_range_end, calc_range_start};
 use services::common::OrderBy;
 use services::governance::{PollStatus, VoterInfo};
@@ -19,6 +19,9 @@ static POLL_INDEXER: Map<(String, U64Key), bool> = Map::new("poll_indexer");
 
 //key: poll_id + poll_voter_addr
 static POLL_VOTER: Map<(U64Key, &Addr), VoterInfo> = Map::new("poll_voter");
+
+static UTILITY: Item<Utility> = Item::new("utility");
+static LOCKED_TOKENS_FOR_UTILITY: Map<&Addr, Uint128> = Map::new("locked_tokens_for_utility");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -37,6 +40,11 @@ pub struct State {
     pub poll_count: u64,
     pub total_share: Uint128,
     pub total_deposit: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Utility {
+    pub token: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -159,6 +167,18 @@ pub fn load_state(storage: &dyn Storage) -> StdResult<State> {
 
 pub fn store_state(storage: &mut dyn Storage, state: &State) -> StdResult<()> {
     KEY_STATE.save(storage, state)
+}
+
+pub fn load_utility(storage: &dyn Storage) -> StdResult<Utility> {
+    UTILITY.load(storage)
+}
+
+pub fn store_utility(storage: &mut dyn Storage, utility: &Utility) -> StdResult<()> {
+    UTILITY.save(storage, utility)
+}
+
+pub fn remove_utility(storage: &mut dyn Storage) {
+    UTILITY.remove(storage);
 }
 
 pub fn store_tmp_poll_id(storage: &mut dyn Storage, tmp_poll_id: u64) -> StdResult<()> {
@@ -318,6 +338,30 @@ fn calc_range_start_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
 
 fn calc_range_end_u64(start_after: Option<u64>) -> Option<Vec<u8>> {
     start_after.map(|id| id.to_be_bytes().to_vec())
+}
+
+pub fn load_locked_tokens_for_utility(storage: &dyn Storage, addr: &Addr) -> StdResult<Uint128> {
+    LOCKED_TOKENS_FOR_UTILITY
+        .may_load(storage, addr)
+        .map(|res| res.unwrap_or_default())
+}
+
+pub fn store_locked_tokens_for_utility(
+    storage: &mut dyn Storage,
+    addr: &Addr,
+    amount: Uint128,
+) -> StdResult<()> {
+    LOCKED_TOKENS_FOR_UTILITY.save(storage, addr, &amount)
+}
+
+pub fn clear_locked_tokens_for_utility(storage: &mut dyn Storage) {
+    let keys: Vec<_> = storage
+        .range(None, None, Order::Ascending)
+        .map(|(key, _)| key)
+        .collect();
+    for key in keys {
+        storage.remove(&key);
+    }
 }
 
 #[cfg(test)]

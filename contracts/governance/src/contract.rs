@@ -97,6 +97,10 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     proposal_deposit,
                     snapshot_period,
                 ),
+
+                // Only for 1st PoL phase.
+                GovernanceMsg::InitUtility { token } => commands::init_utility(deps, token),
+                GovernanceMsg::DestroyUtility {} => commands::destroy_utility(deps),
             }
         }
 
@@ -115,6 +119,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             AnyoneMsg::EndPoll { poll_id } => commands::end_poll(deps, env, poll_id),
             AnyoneMsg::ExecutePoll { poll_id } => commands::execute_poll(deps, env, poll_id),
             AnyoneMsg::SnapshotPoll { poll_id } => commands::snapshot_poll(deps, env, poll_id),
+
+            // Only for 1st PoL phase.
+            AnyoneMsg::LockTokensForUtility { amount } => {
+                commands::lock_tokens_for_utility(deps, env, info, amount)
+            }
         },
 
         ExecuteMsg::Yourself { yourself_msg } => {
@@ -137,16 +146,11 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    // only asset contract can execute this message
-    let config: Config = load_config(deps.storage)?;
-    if config.psi_token != info.sender {
-        return Err(StdError::generic_err("unauthorized"));
-    }
-
     let real_sender = Addr::unchecked(cw20_msg.sender);
+
     match from_binary(&cw20_msg.msg) {
         Ok(Cw20HookMsg::StakeVotingTokens {}) => {
-            commands::stake_voting_tokens(deps, env, info, &config, real_sender, cw20_msg.amount)
+            commands::stake_voting_tokens(deps, env, info, real_sender, cw20_msg.amount)
         }
         Ok(Cw20HookMsg::CreatePoll {
             title,
@@ -157,6 +161,7 @@ pub fn receive_cw20(
         }) => commands::create_poll(
             deps,
             env,
+            info,
             real_sender,
             cw20_msg.amount,
             title,
@@ -165,6 +170,10 @@ pub fn receive_cw20(
             execute_msgs,
             migrate_msgs,
         ),
+        // Only for 1st PoL phase.
+        Ok(Cw20HookMsg::UnlockTokensForUtility {}) => {
+            commands::unlock_tokens_for_utility(deps, env, info, real_sender, cw20_msg.amount)
+        }
 
         Err(err) => Err(err),
     }
@@ -201,6 +210,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order_by,
         )?),
+        QueryMsg::UtilityLock { address } => {
+            to_binary(&queries::query_utility_lock(deps, address)?)
+        }
     }
 }
 

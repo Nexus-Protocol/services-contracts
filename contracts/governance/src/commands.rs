@@ -10,10 +10,12 @@ use crate::{
     contract::POLL_EXECUTE_REPLY_ID,
     querier::query_token_balance,
     state::{
-        load_bank, load_config, load_poll, load_poll_voter, load_state, may_load_bank,
-        remove_poll_indexer, remove_poll_voter, store_bank, store_config, store_poll,
-        store_poll_indexer, store_poll_voter, store_state, store_tmp_poll_id, Config, ExecuteData,
-        MigrateData, Poll, TokenManager,
+        clear_locked_tokens_for_utility, load_bank, load_config, load_locked_tokens_for_utility,
+        load_poll, load_poll_voter, load_state, load_utility, may_load_bank, remove_poll_indexer,
+        remove_poll_voter, remove_utility, store_bank, store_config,
+        store_locked_tokens_for_utility, store_poll, store_poll_indexer, store_poll_voter,
+        store_state, store_tmp_poll_id, store_utility, Config, ExecuteData, MigrateData, Poll,
+        TokenManager, Utility,
     },
     utils,
 };
@@ -65,13 +67,17 @@ pub fn update_config(
 pub fn stake_voting_tokens(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
-    config: &Config,
+    info: MessageInfo,
     sender: Addr,
     amount: Uint128,
 ) -> StdResult<Response> {
     if amount.is_zero() {
         return Err(StdError::generic_err("Insufficient funds sent"));
+    }
+
+    let config: Config = load_config(deps.storage)?;
+    if config.psi_token != info.sender {
+        return Err(StdError::generic_err("unauthorized"));
     }
 
     let mut token_manager = load_bank(deps.storage, &sender)?;
@@ -105,6 +111,7 @@ pub fn stake_voting_tokens(
 pub fn create_poll(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     proposer: Addr,
     deposit_amount: Uint128,
     title: String,
@@ -113,6 +120,11 @@ pub fn create_poll(
     execute_msgs: Option<Vec<PollExecuteMsg>>,
     migrate_msgs: Option<Vec<PollMigrateMsg>>,
 ) -> StdResult<Response> {
+    let config: Config = load_config(deps.storage)?;
+    if config.psi_token != info.sender {
+        return Err(StdError::generic_err("unauthorized"));
+    }
+
     utils::validate_title(&title)?;
     utils::validate_description(&description)?;
     utils::validate_link(&link)?;
@@ -524,7 +536,7 @@ pub fn withdraw_voting_tokens(
     if let Some(mut token_manager) = may_load_bank(deps.storage, &info.sender)? {
         let config: Config = load_config(deps.storage)?;
         let mut state = load_state(deps.storage)?;
-        let user_address = info.sender;
+        let user_address = info.sender.clone();
 
         // Load total share & total balance except proposal deposit amount
         let total_share = state.total_share.u128();
@@ -544,9 +556,17 @@ pub fn withdraw_voting_tokens(
             .map(|v| v.u128())
             .unwrap_or_else(|| withdraw_share * total_balance / total_share);
 
+        let locked_balance_for_utility =
+            load_locked_tokens_for_utility(deps.storage, &info.sender)?.u128();
+        let locked_share_for_utility = total_share * locked_balance_for_utility / total_balance;
+
         if locked_share + withdraw_share > user_share {
             Err(StdError::generic_err(
                 "User is trying to withdraw too many tokens.",
+            ))
+        } else if locked_share_for_utility + withdraw_share > user_share {
+            Err(StdError::generic_err(
+                "User is trying to withdraw tokens locked for utility",
             ))
         } else {
             let share = user_share - withdraw_share;
@@ -575,6 +595,111 @@ pub fn withdraw_voting_tokens(
     } else {
         Err(StdError::generic_err("Nothing staked"))
     }
+}
+
+pub fn init_utility(deps: DepsMut, utility_token_str: String) -> StdResult<Response> {
+    let utility_token = deps.api.addr_validate(&utility_token_str)?;
+    store_utility(
+        deps.storage,
+        &Utility {
+            token: utility_token,
+        },
+    )?;
+    Ok(Response::new()
+        .add_attribute("action", "init_utility")
+        .add_attribute("utility_token", utility_token_str))
+}
+
+pub fn destroy_utility(deps: DepsMut) -> StdResult<Response> {
+    remove_utility(deps.storage);
+    clear_locked_tokens_for_utility(deps.storage);
+    Ok(Response::new().add_attribute("action", "destroy_utility"))
+}
+
+pub fn lock_tokens_for_utility(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Option<Uint128>,
+) -> StdResult<Response> {
+    if amount == Some(Uint128::zero()) {
+        return Err(StdError::generic_err("Trying to lock zero tokens"));
+    }
+
+    let sender = info.sender;
+
+    let config = load_config(deps.storage)?;
+    let state = load_state(deps.storage)?;
+    let utility = load_utility(deps.storage)?;
+    let token_manager = load_bank(deps.storage, &sender)?;
+
+    let user_share = token_manager.share;
+    if user_share.is_zero() {
+        return Err(StdError::generic_err("No tokens to lock"));
+    }
+
+    let total_share = state.total_share;
+    let psi_balance = query_token_balance(deps.as_ref(), &config.psi_token, &env.contract.address)?;
+    let total_balance = psi_balance - state.total_deposit;
+
+    let locked_amount = load_locked_tokens_for_utility(deps.storage, &sender)?;
+    let available_amount_to_lock =
+        total_balance.multiply_ratio(user_share, total_share) - locked_amount;
+
+    let amount_to_lock = match amount {
+        Some(amount) => amount,
+        None => available_amount_to_lock,
+    };
+
+    if amount_to_lock > available_amount_to_lock {
+        return Err(StdError::generic_err("Not enough tokens to lock"));
+    }
+
+    store_locked_tokens_for_utility(deps.storage, &sender, locked_amount + amount_to_lock)?;
+
+    Ok(Response::new()
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: utility.token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Mint {
+                recipient: sender.to_string(),
+                amount: amount_to_lock,
+            })?,
+            funds: vec![],
+        }))
+        .add_attribute("action", "lock_tokens_for_utility")
+        .add_attribute("amount", amount_to_lock))
+}
+
+pub fn unlock_tokens_for_utility(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    sender: Addr,
+    amount: Uint128,
+) -> StdResult<Response> {
+    let utility = load_utility(deps.storage)?;
+    let utility_token = utility.token;
+
+    if utility_token != info.sender {
+        return Err(StdError::generic_err("Unauthorized"));
+    }
+
+    let locked_amount = load_locked_tokens_for_utility(deps.storage, &sender)?;
+
+    if amount > locked_amount {
+        return Err(StdError::generic_err("Not enough tokens to unlock"));
+    }
+
+    store_locked_tokens_for_utility(deps.storage, &sender, locked_amount - amount)?;
+
+    Ok(Response::new()
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: utility_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+            funds: vec![],
+        }))
+        .add_attribute("action", "unlock_tokens_for_utility")
+        .add_attribute("amount", amount))
 }
 
 // removes not in-progress poll voter info & unlock tokens

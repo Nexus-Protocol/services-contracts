@@ -10,8 +10,8 @@ use services::{
 use crate::{
     querier::query_token_balance,
     state::{
-        load_bank, load_config, load_poll, load_state, may_load_poll, read_poll_voters, read_polls,
-        Config, Poll,
+        load_bank, load_config, load_locked_tokens_for_utility, load_poll, load_state,
+        may_load_poll, read_poll_voters, read_polls, Config, Poll,
     },
 };
 
@@ -215,4 +215,8 @@ pub fn query_staker(deps: Deps, env: Env, address: String) -> StdResult<StakerRe
         share: token_manager.share,
         locked_balance: token_manager.locked_balance,
     })
+}
+
+pub fn query_utility_lock(deps: Deps, address: String) -> StdResult<Uint128> {
+    load_locked_tokens_for_utility(deps.storage, &deps.api.addr_validate(&address)?)
 }

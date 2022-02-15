@@ -53,6 +53,9 @@ pub enum AnyoneMsg {
     SnapshotPoll {
         poll_id: u64,
     },
+    LockTokensForUtility {
+        amount: Option<Uint128>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -67,6 +70,10 @@ pub enum GovernanceMsg {
         proposal_deposit: Option<Uint128>,
         snapshot_period: Option<u64>,
     },
+    InitUtility {
+        token: String,
+    },
+    DestroyUtility {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -83,6 +90,7 @@ pub enum Cw20HookMsg {
         execute_msgs: Option<Vec<PollExecuteMsg>>,
         migrate_msgs: Option<Vec<PollMigrateMsg>>,
     },
+    UnlockTokensForUtility {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -124,6 +132,9 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
         order_by: Option<OrderBy>,
+    },
+    UtilityLock {
+        address: String,
     },
 }
 
