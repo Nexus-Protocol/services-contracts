@@ -97,8 +97,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     proposal_deposit,
                     snapshot_period,
                 ),
-
-                // Only for 1st PoL phase.
                 GovernanceMsg::InitUtility { token } => commands::init_utility(deps, token),
                 GovernanceMsg::DestroyUtility {} => commands::destroy_utility(deps),
             }
@@ -119,8 +117,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             AnyoneMsg::EndPoll { poll_id } => commands::end_poll(deps, env, poll_id),
             AnyoneMsg::ExecutePoll { poll_id } => commands::execute_poll(deps, env, poll_id),
             AnyoneMsg::SnapshotPoll { poll_id } => commands::snapshot_poll(deps, env, poll_id),
-
-            // Only for 1st PoL phase.
             AnyoneMsg::LockTokensForUtility { amount } => {
                 commands::lock_tokens_for_utility(deps, env, info, amount)
             }
@@ -170,7 +166,6 @@ pub fn receive_cw20(
             execute_msgs,
             migrate_msgs,
         ),
-        // Only for 1st PoL phase.
         Ok(Cw20HookMsg::UnlockTokensForUtility {}) => {
             commands::unlock_tokens_for_utility(deps, env, info, real_sender, cw20_msg.amount)
         }

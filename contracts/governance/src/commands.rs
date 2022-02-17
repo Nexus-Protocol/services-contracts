@@ -566,7 +566,7 @@ pub fn withdraw_voting_tokens(
             ))
         } else if locked_share_for_utility + withdraw_share > user_share {
             Err(StdError::generic_err(
-                "User is trying to withdraw tokens locked for utility",
+                "User is trying to withdraw tokens locked for utility.",
             ))
         } else {
             let share = user_share - withdraw_share;
@@ -687,7 +687,7 @@ pub fn unlock_tokens_for_utility(
     let locked_amount = load_locked_tokens_for_utility(deps.storage, &sender)?;
 
     if amount > locked_amount {
-        return Err(StdError::generic_err("Not enough tokens to unlock"));
+        return Err(StdError::generic_err("Not enough locked tokens to unlock"));
     }
 
     store_locked_tokens_for_utility(deps.storage, &sender, locked_amount - amount)?;
