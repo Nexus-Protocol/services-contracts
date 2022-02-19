@@ -355,12 +355,12 @@ pub fn store_locked_tokens_for_utility(
 }
 
 pub fn clear_locked_tokens_for_utility(storage: &mut dyn Storage) {
-    let keys: Vec<_> = storage
-        .range(None, None, Order::Ascending)
-        .map(|(key, _)| key)
+    let keys: Vec<_> = LOCKED_TOKENS_FOR_UTILITY
+        .keys(storage, None, None, Order::Ascending)
+        .map(|denom| String::from_utf8_lossy(&denom).into_owned())
         .collect();
     for key in keys {
-        storage.remove(&key);
+        LOCKED_TOKENS_FOR_UTILITY.remove(storage, &Addr::unchecked(key));
     }
 }
 

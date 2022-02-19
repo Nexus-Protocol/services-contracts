@@ -549,16 +549,21 @@ pub fn withdraw_voting_tokens(
         let locked_share = locked_balance * total_share / total_balance;
         let user_share = token_manager.share.u128();
 
-        let withdraw_share = amount
-            .map(|v| std::cmp::max(v.multiply_ratio(total_share, total_balance).u128(), 1u128))
-            .unwrap_or_else(|| user_share - locked_share);
-        let withdraw_amount = amount
-            .map(|v| v.u128())
-            .unwrap_or_else(|| withdraw_share * total_balance / total_share);
-
         let locked_balance_for_utility =
             load_locked_tokens_for_utility(deps.storage, &info.sender)?.u128();
         let locked_share_for_utility = total_share * locked_balance_for_utility / total_balance;
+
+        let withdraw_share = amount
+            .map(|v| std::cmp::max(v.multiply_ratio(total_share, total_balance).u128(), 1u128))
+            .unwrap_or_else(|| {
+                std::cmp::min(
+                    user_share - locked_share,
+                    user_share - locked_share_for_utility,
+                )
+            });
+        let withdraw_amount = amount
+            .map(|v| v.u128())
+            .unwrap_or_else(|| withdraw_share * total_balance / total_share);
 
         if locked_share + withdraw_share > user_share {
             Err(StdError::generic_err(

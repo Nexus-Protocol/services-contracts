@@ -28,6 +28,7 @@ pub struct MigrateMsg {
 }
 
 const VOTING_TOKEN: &str = "voting_token";
+const UTILITY_TOKEN: &str = "utility_token";
 const TEST_CREATOR: &str = "creator";
 const TEST_VOTER: &str = "voter1";
 const TEST_VOTER_2: &str = "voter2";
@@ -3737,4 +3738,399 @@ fn execute_poll_with_empty_execute_data() {
     .unwrap();
     let polls_res: PollsResponse = from_binary(&res).unwrap();
     assert_eq!(polls_res.polls[0], poll_res);
+}
+
+#[test]
+fn lock_zero_tokens_fails() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::LockTokensForUtility {
+            amount: Some(Uint128::zero()),
+        },
+    };
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(
+        Err(StdError::generic_err("Trying to lock zero tokens")),
+        resp
+    );
+}
+
+#[test]
+fn lock_tokens_fails_when_no_utility() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::LockTokensForUtility {
+            amount: Some(Uint128::new(100)),
+        },
+    };
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(
+        Err(StdError::not_found("nexus_governance::state::Utility")),
+        resp
+    );
+}
+
+#[test]
+fn init_utility_fails_when_not_owner() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::InitUtility {
+            token: UTILITY_TOKEN.to_owned(),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(Err(StdError::generic_err("unauthorized")), resp);
+}
+
+#[test]
+fn destroy_utility_fails_when_not_owner() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::DestroyUtility {},
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(Err(StdError::generic_err("unauthorized")), resp);
+}
+
+#[test]
+fn lock_tokens_fails_when_no_tokens() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::InitUtility {
+            token: UTILITY_TOKEN.to_owned(),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::LockTokensForUtility {
+            amount: Some(Uint128::new(100)),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(Err(StdError::generic_err("No tokens to lock")), resp);
+}
+
+#[test]
+fn lock_tokens_fails_when_less_available() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    deps.querier.with_token_balances(&[(
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(10))],
+    )]);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::InitUtility {
+            token: UTILITY_TOKEN.to_owned(),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::new(10),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+    let env = mock_env();
+    let info = mock_info(VOTING_TOKEN, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::LockTokensForUtility {
+            amount: Some(Uint128::new(11)),
+        },
+    };
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(
+        Err(StdError::generic_err("Not enough tokens to lock")),
+        resp
+    );
+}
+
+#[test]
+fn unlock_tokens_with_not_utility_tokens_fails() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::InitUtility {
+            token: UTILITY_TOKEN.to_owned(),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::new(10),
+        msg: to_binary(&Cw20HookMsg::UnlockTokensForUtility {}).unwrap(),
+    });
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(Err(StdError::generic_err("Unauthorized")), resp);
+}
+
+#[test]
+fn unlock_more_tokens_then_locked_fails() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::InitUtility {
+            token: UTILITY_TOKEN.to_owned(),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::new(10),
+        msg: to_binary(&Cw20HookMsg::UnlockTokensForUtility {}).unwrap(),
+    });
+    let env = mock_env();
+    let info = mock_info(UTILITY_TOKEN, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(
+        Err(StdError::generic_err("Not enough locked tokens to unlock")),
+        resp
+    );
+}
+
+#[test]
+fn withdraw_locked_tokens_fails() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    deps.querier.with_token_balances(&[(
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(10))],
+    )]);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::InitUtility {
+            token: UTILITY_TOKEN.to_owned(),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::new(10),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+    let env = mock_env();
+    let info = mock_info(VOTING_TOKEN, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::LockTokensForUtility {
+            amount: Some(Uint128::new(7)),
+        },
+    };
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::WithdrawVotingTokens {
+            amount: Some(Uint128::new(4)),
+        },
+    };
+    let resp = execute(deps.as_mut(), env, info, msg);
+
+    assert_eq!(
+        Err(StdError::generic_err(
+            "User is trying to withdraw tokens locked for utility."
+        )),
+        resp
+    );
+}
+
+#[test]
+fn happy_utility_usage() {
+    let mut deps = mock_dependencies(&[]);
+    mock_init(&mut deps);
+
+    deps.querier.with_token_balances(&[(
+        &VOTING_TOKEN.to_string(),
+        &[(&MOCK_CONTRACT_ADDR.to_string(), &Uint128::new(10))],
+    )]);
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::InitUtility {
+            token: UTILITY_TOKEN.to_owned(),
+        },
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::new(10),
+        msg: to_binary(&Cw20HookMsg::StakeVotingTokens {}).unwrap(),
+    });
+    let env = mock_env();
+    let info = mock_info(VOTING_TOKEN, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::LockTokensForUtility {
+            amount: Some(Uint128::new(7)),
+        },
+    };
+    let resp = execute(deps.as_mut(), env, info, msg);
+    assert_eq!(
+        Ok(Response::new()
+            .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: UTILITY_TOKEN.to_owned(),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: TEST_VOTER.to_owned(),
+                    amount: Uint128::new(7),
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+            .add_attribute("action", "lock_tokens_for_utility")
+            .add_attribute("amount", "7")),
+        resp
+    );
+
+    let query_resp: Uint128 = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::UtilityLock {
+                address: TEST_VOTER.to_owned(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(Uint128::new(7), query_resp);
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::LockTokensForUtility { amount: None },
+    };
+    let resp = execute(deps.as_mut(), env, info, msg);
+    assert_eq!(
+        Ok(Response::new()
+            .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: UTILITY_TOKEN.to_owned(),
+                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                    recipient: TEST_VOTER.to_owned(),
+                    amount: Uint128::new(3),
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+            .add_attribute("action", "lock_tokens_for_utility")
+            .add_attribute("amount", "3")),
+        resp
+    );
+
+    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
+        sender: TEST_VOTER.to_string(),
+        amount: Uint128::new(2),
+        msg: to_binary(&Cw20HookMsg::UnlockTokensForUtility {}).unwrap(),
+    });
+    let env = mock_env();
+    let info = mock_info(UTILITY_TOKEN, &[]);
+    let resp = execute(deps.as_mut(), env, info, msg);
+    assert_eq!(
+        Ok(Response::new()
+            .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: UTILITY_TOKEN.to_owned(),
+                msg: to_binary(&Cw20ExecuteMsg::Burn {
+                    amount: Uint128::new(2)
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+            .add_attribute("action", "unlock_tokens_for_utility")
+            .add_attribute("amount", "2")),
+        resp
+    );
+
+    let msg = ExecuteMsg::Governance {
+        governance_msg: GovernanceMsg::DestroyUtility {},
+    };
+    let env = mock_env();
+    let info = mock_info(TEST_CREATOR, &[]);
+    execute(deps.as_mut(), env, info, msg).unwrap();
+
+    let env = mock_env();
+    let info = mock_info(TEST_VOTER, &[]);
+    let msg = ExecuteMsg::Anyone {
+        anyone_msg: AnyoneMsg::WithdrawVotingTokens { amount: None },
+    };
+    let resp = execute(deps.as_mut(), env, info, msg);
+    assert_eq!(
+        Ok(Response::new()
+            .add_message(WasmMsg::Execute {
+                contract_addr: VOTING_TOKEN.to_owned(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: TEST_VOTER.to_owned(),
+                    amount: Uint128::new(10),
+                })
+                .unwrap(),
+                funds: vec![],
+            })
+            .add_attributes(vec![
+                ("action", "withdraw"),
+                ("recipient", TEST_VOTER),
+                ("amount", "10"),
+            ])),
+        resp
+    );
 }
