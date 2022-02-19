@@ -21,6 +21,7 @@ use crate::{
 };
 use cw20::Cw20ExecuteMsg;
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut,
     mut current_config: Config,
@@ -720,7 +721,7 @@ fn compute_locked_balance(
 
         if poll.status != PollStatus::InProgress {
             // remove voter info from the poll
-            remove_poll_voter(storage, *poll_id, &voter);
+            remove_poll_voter(storage, *poll_id, voter);
         }
 
         poll.status == PollStatus::InProgress

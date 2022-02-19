@@ -95,7 +95,7 @@ impl Poll {
             true
         };
 
-        return !execute_messages_is_empty || !migration_messages_is_empty;
+        !execute_messages_is_empty || !migration_messages_is_empty
     }
 }
 
@@ -785,25 +785,23 @@ mod test {
     #[test]
     fn poll_contain_messages_test() {
         let mut poll = Poll::default();
-        poll.execute_data = None;
-        poll.migrate_data = None;
-        assert_eq!(poll.contain_messages(), false);
+        assert!(!poll.contain_messages());
 
         poll.migrate_data = None;
         poll.execute_data = Some(vec![]);
-        assert_eq!(poll.contain_messages(), false);
+        assert!(!poll.contain_messages());
 
         poll.execute_data = None;
         poll.migrate_data = Some(vec![]);
-        assert_eq!(poll.contain_messages(), false);
+        assert!(!poll.contain_messages());
 
         poll.execute_data = Some(vec![]);
         poll.migrate_data = Some(vec![]);
-        assert_eq!(poll.contain_messages(), false);
+        assert!(!poll.contain_messages());
 
         poll.execute_data = Some(vec![]);
         poll.migrate_data = Some(vec![]);
-        assert_eq!(poll.contain_messages(), false);
+        assert!(!poll.contain_messages());
 
         let exec_msg = ExecuteData {
             order: 1u64,
@@ -826,14 +824,14 @@ mod test {
 
         poll.execute_data = Some(vec![exec_msg.clone()]);
         poll.migrate_data = None;
-        assert_eq!(poll.contain_messages(), true);
+        assert!(poll.contain_messages());
 
         poll.execute_data = None;
         poll.migrate_data = Some(vec![migrate_msg.clone()]);
-        assert_eq!(poll.contain_messages(), true);
+        assert!(poll.contain_messages());
 
         poll.execute_data = Some(vec![exec_msg]);
         poll.migrate_data = Some(vec![migrate_msg]);
-        assert_eq!(poll.contain_messages(), true);
+        assert!(poll.contain_messages());
     }
 }
