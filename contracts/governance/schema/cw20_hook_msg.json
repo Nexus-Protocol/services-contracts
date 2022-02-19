@@ -63,6 +63,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "unlock_tokens_for_utility"
+      ],
+      "properties": {
+        "unlock_tokens_for_utility": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

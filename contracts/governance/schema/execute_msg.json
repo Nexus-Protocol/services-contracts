@@ -217,6 +217,30 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "lock_tokens_for_utility"
+          ],
+          "properties": {
+            "lock_tokens_for_utility": {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Uint128"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
@@ -320,6 +344,38 @@
                   "minimum": 0.0
                 }
               }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "init_utility"
+          ],
+          "properties": {
+            "init_utility": {
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "destroy_utility"
+          ],
+          "properties": {
+            "destroy_utility": {
+              "type": "object"
             }
           },
           "additionalProperties": false
