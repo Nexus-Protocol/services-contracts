@@ -301,7 +301,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
         .add_attributes(vec![
             ("action", "end_poll"),
             ("poll_id", &poll_id.to_string()),
-            ("rejected_reason", &rejected_reason.to_string()),
+            ("rejected_reason", rejected_reason),
             ("passed", &passed.to_string()),
         ]))
 }
