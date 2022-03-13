@@ -11,7 +11,7 @@ use crate::{
     querier::query_token_balance,
     state::{
         load_bank, load_config, load_locked_tokens_for_utility, load_poll, load_state,
-        may_load_poll, read_poll_voters, read_polls, Config, Poll,
+        load_utility, may_load_poll, read_poll_voters, read_polls, Config, Poll,
     },
 };
 
@@ -26,6 +26,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         timelock_period: config.timelock_period,
         proposal_deposit: config.proposal_deposit,
         snapshot_period: config.snapshot_period,
+        utility_token: load_utility(deps.storage).map(|u| u.token.to_string()).ok(),
     })
 }
 

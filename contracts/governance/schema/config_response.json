@@ -38,6 +38,12 @@
       "format": "uint64",
       "minimum": 0.0
     },
+    "utility_token": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "voting_period": {
       "type": "integer",
       "format": "uint64",
