@@ -27,6 +27,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         proposal_deposit: config.proposal_deposit,
         snapshot_period: config.snapshot_period,
         utility_token: load_utility(deps.storage).map(|u| u.token.to_string()).ok(),
+        psi_nexprism_staking: config.psi_nexprism_staking.to_string(),
     })
 }
 

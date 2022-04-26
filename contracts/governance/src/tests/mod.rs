@@ -31,6 +31,7 @@ pub struct MigrateMsg {
 
 const VOTING_TOKEN: &str = "voting_token";
 const UTILITY_TOKEN: &str = "utility_token";
+const PSI_NEXPRISM_STAKING: &str = "psi_nexprism_staking";
 const TEST_CREATOR: &str = "creator";
 const TEST_VOTER: &str = "voter1";
 const TEST_VOTER_2: &str = "voter2";
@@ -50,6 +51,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        psi_nexprism_staking: PSI_NEXPRISM_STAKING.to_owned(),
     };
 
     let env = mock_env();
@@ -69,6 +71,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
             proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             snapshot_period: DEFAULT_FIX_PERIOD,
+            psi_nexprism_staking: Addr::unchecked(PSI_NEXPRISM_STAKING),
         }
     );
 
@@ -92,6 +95,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
             proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             snapshot_period: DEFAULT_FIX_PERIOD,
+            psi_nexprism_staking: Addr::unchecked(PSI_NEXPRISM_STAKING),
         }
     );
 
@@ -159,6 +163,7 @@ fn fails_init_invalid_quorum() {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        psi_nexprism_staking: PSI_NEXPRISM_STAKING.to_owned(),
     };
 
     let res = instantiate(deps.as_mut(), env, info, msg);
@@ -181,6 +186,7 @@ fn fails_init_invalid_threshold() {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        psi_nexprism_staking: PSI_NEXPRISM_STAKING.to_owned(),
     };
 
     let res = instantiate(deps.as_mut(), env, info, msg);
@@ -2422,6 +2428,7 @@ fn update_config() {
             timelock_period: None,
             proposal_deposit: None,
             snapshot_period: None,
+            psi_nexprism_staking: None,
         },
     };
 
@@ -2450,6 +2457,7 @@ fn update_config() {
             timelock_period: Some(20000u64),
             proposal_deposit: Some(Uint128::new(123u128)),
             snapshot_period: Some(11),
+            psi_nexprism_staking: Some(PSI_NEXPRISM_STAKING.to_owned()),
         },
     };
 
@@ -2479,6 +2487,7 @@ fn update_config() {
             timelock_period: None,
             proposal_deposit: None,
             snapshot_period: None,
+            psi_nexprism_staking: None,
         },
     };
 

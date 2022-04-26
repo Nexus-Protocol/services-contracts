@@ -32,6 +32,7 @@ pub fn update_config(
     timelock_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
     snapshot_period: Option<u64>,
+    psi_nexprism_staking: Option<String>,
 ) -> StdResult<Response> {
     if let Some(ref owner) = owner {
         current_config.owner = deps.api.addr_validate(owner)?;
@@ -59,6 +60,10 @@ pub fn update_config(
 
     if let Some(snapshot_period) = snapshot_period {
         current_config.snapshot_period = snapshot_period;
+    }
+
+    if let Some(psi_nexprism_staking) = psi_nexprism_staking {
+        current_config.psi_nexprism_staking = deps.api.addr_validate(&psi_nexprism_staking)?;
     }
 
     store_config(deps.storage, &current_config)?;
@@ -100,12 +105,21 @@ pub fn stake_voting_tokens(
     store_state(deps.storage, &state)?;
     store_bank(deps.storage, &sender, &token_manager)?;
 
-    Ok(Response::new().add_attributes(vec![
-        ("action", "staking"),
-        ("sender", &sender.to_string()),
-        ("share", &share.to_string()),
-        ("amount", &amount.to_string()),
-    ]))
+    Ok(Response::new()
+        .add_submessage(SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.psi_nexprism_staking.to_string(),
+            msg: to_binary(&nexus_prism_protocol::staking::OwnerMsg::IncreaseBalance {
+                address: sender.to_string(),
+                amount,
+            })?,
+            funds: vec![],
+        }))
+        .add_attributes(vec![
+            ("action", "staking"),
+            ("sender", &sender.to_string()),
+            ("share", &share.to_string()),
+            ("amount", &amount.to_string()),
+        ]))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -592,6 +606,14 @@ pub fn withdraw_voting_tokens(
                     })?,
                     funds: vec![],
                 })
+                .add_submessage(SubMsg::new(WasmMsg::Execute {
+                    contract_addr: config.psi_nexprism_staking.to_string(),
+                    msg: to_binary(&nexus_prism_protocol::staking::OwnerMsg::DecreaseBalance {
+                        address: user_address.to_string(),
+                        amount: Uint128::new(withdraw_amount),
+                    })?,
+                    funds: vec![],
+                }))
                 .add_attributes(vec![
                     ("action", "withdraw"),
                     ("recipient", &user_address.to_string()),

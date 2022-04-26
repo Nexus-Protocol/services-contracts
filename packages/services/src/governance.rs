@@ -13,6 +13,7 @@ pub struct InstantiateMsg {
     pub timelock_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
+    pub psi_nexprism_staking: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -69,6 +70,7 @@ pub enum GovernanceMsg {
         timelock_period: Option<u64>,
         proposal_deposit: Option<Uint128>,
         snapshot_period: Option<u64>,
+        psi_nexprism_staking: Option<String>,
     },
     InitUtility {
         token: String,
@@ -149,6 +151,7 @@ pub struct ConfigResponse {
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
     pub utility_token: Option<String>,
+    pub psi_nexprism_staking: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]

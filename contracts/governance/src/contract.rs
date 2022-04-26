@@ -43,6 +43,7 @@ pub fn instantiate(
         timelock_period: msg.timelock_period,
         proposal_deposit: msg.proposal_deposit,
         snapshot_period: msg.snapshot_period,
+        psi_nexprism_staking: deps.api.addr_validate(&msg.psi_nexprism_staking)?,
     };
 
     let state = State {
@@ -86,6 +87,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     timelock_period,
                     proposal_deposit,
                     snapshot_period,
+                    psi_nexprism_staking,
                 } => commands::update_config(
                     deps,
                     config,
@@ -96,6 +98,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     timelock_period,
                     proposal_deposit,
                     snapshot_period,
+                    psi_nexprism_staking,
                 ),
                 GovernanceMsg::InitUtility { token } => commands::init_utility(deps, token),
                 GovernanceMsg::DestroyUtility {} => commands::destroy_utility(deps),
