@@ -236,4 +236,6 @@ impl fmt::Display for VoteOption {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub psi_nexprism_staking: String,
+}

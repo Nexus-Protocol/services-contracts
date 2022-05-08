@@ -211,6 +211,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[entry_point]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = load_config(deps.storage)?;
+    config.psi_nexprism_staking = Some(deps.api.addr_validate(&msg.psi_nexprism_staking)?);
+    store_config(deps.storage, &config)?;
+
     Ok(Response::default())
 }

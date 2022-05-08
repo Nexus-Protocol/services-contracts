@@ -9,7 +9,6 @@ use services::governance::{PollStatus, VoterInfo};
 use std::cmp::Ordering;
 
 static KEY_CONFIG: Item<Config> = Item::new("config");
-pub static OLD_KEY_CONFIG: Item<OldConfig> = Item::new("config");
 static KEY_STATE: Item<State> = Item::new("state");
 static TMP_POLL_ID: Item<u64> = Item::new("tmp_poll_id");
 static BANK: Map<&Addr, TokenManager> = Map::new("bank");
@@ -32,17 +31,6 @@ pub struct Config {
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
     pub psi_nexprism_staking: Option<Addr>,
-}
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct OldConfig {
-    pub owner: Addr,
-    pub psi_token: Addr,
-    pub quorum: Decimal,
-    pub threshold: Decimal,
-    pub voting_period: u64,
-    pub timelock_period: u64,
-    pub proposal_deposit: Uint128,
-    pub snapshot_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

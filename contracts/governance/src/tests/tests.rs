@@ -53,23 +53,6 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
 
     let env = mock_env();
     let info = mock_info(TEST_CREATOR, &[]);
-    crate::state::OLD_KEY_CONFIG
-        .save(
-            &mut deps.storage,
-            &crate::state::OldConfig {
-                owner: Addr::unchecked(TEST_CREATOR.to_string()),
-                psi_token: Addr::unchecked("".to_string()),
-                quorum: Decimal::percent(DEFAULT_QUORUM),
-                threshold: Decimal::percent(DEFAULT_THRESHOLD),
-                voting_period: DEFAULT_VOTING_PERIOD,
-                timelock_period: DEFAULT_TIMELOCK_PERIOD,
-                proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
-                snapshot_period: DEFAULT_FIX_PERIOD,
-            },
-        )
-        .unwrap();
-    let config = load_config(deps.as_ref().storage).unwrap();
-    assert_eq!(config.psi_nexprism_staking, None);
     instantiate(deps.as_mut(), env, info.clone(), msg)
         .expect("contract successfully handles InitMsg");
     let config = load_config(deps.as_ref().storage).unwrap();
