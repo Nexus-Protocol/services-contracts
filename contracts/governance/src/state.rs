@@ -30,6 +30,7 @@ pub struct Config {
     pub timelock_period: u64,
     pub proposal_deposit: Uint128,
     pub snapshot_period: u64,
+    pub psi_nexprism_staking: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -87,7 +88,7 @@ impl Poll {
             true
         };
 
-        return !execute_messages_is_empty || !migration_messages_is_empty;
+        !execute_messages_is_empty || !migration_messages_is_empty
     }
 }
 

@@ -28,6 +28,7 @@ pub struct MigrateMsg {
 }
 
 const VOTING_TOKEN: &str = "voting_token";
+const PSI_NEXPRISM_STAKING: &str = "psi_nexprism_staking";
 const TEST_CREATOR: &str = "creator";
 const TEST_VOTER: &str = "voter1";
 const TEST_VOTER_2: &str = "voter2";
@@ -47,6 +48,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        psi_nexprism_staking: Some(PSI_NEXPRISM_STAKING.to_owned()),
     };
 
     let env = mock_env();
@@ -66,6 +68,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
             proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             snapshot_period: DEFAULT_FIX_PERIOD,
+            psi_nexprism_staking: Some(Addr::unchecked(PSI_NEXPRISM_STAKING)),
         }
     );
 
@@ -89,6 +92,7 @@ fn mock_init(deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>) {
             timelock_period: DEFAULT_TIMELOCK_PERIOD,
             proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
             snapshot_period: DEFAULT_FIX_PERIOD,
+            psi_nexprism_staking: Some(Addr::unchecked(PSI_NEXPRISM_STAKING)),
         }
     );
 
@@ -156,6 +160,7 @@ fn fails_init_invalid_quorum() {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        psi_nexprism_staking: Some(PSI_NEXPRISM_STAKING.to_owned()),
     };
 
     let res = instantiate(deps.as_mut(), env, info, msg);
@@ -178,6 +183,7 @@ fn fails_init_invalid_threshold() {
         timelock_period: DEFAULT_TIMELOCK_PERIOD,
         proposal_deposit: Uint128::new(DEFAULT_PROPOSAL_DEPOSIT),
         snapshot_period: DEFAULT_FIX_PERIOD,
+        psi_nexprism_staking: Some(PSI_NEXPRISM_STAKING.to_owned()),
     };
 
     let res = instantiate(deps.as_mut(), env, info, msg);
@@ -1806,19 +1812,32 @@ fn happy_days_withdraw_voting_tokens() {
     };
 
     let execute_res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
-    let msg = execute_res.messages.get(0).expect("no message");
+    let msgs = execute_res.messages;
 
     assert_eq!(
-        msg,
-        &SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: VOTING_TOKEN.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: TEST_VOTER.to_string(),
-                amount: Uint128::from(11u128),
-            })
-            .unwrap(),
-            funds: vec![],
-        }))
+        msgs,
+        vec![
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: PSI_NEXPRISM_STAKING.to_string(),
+                msg: to_binary(&crate::nexus_prism::ExecuteMsg::StakeOperator {
+                    msg: crate::nexus_prism::StakeOperatorMsg::DecreaseBalance {
+                        staker: TEST_VOTER.to_string(),
+                        amount: Uint128::from(11u128),
+                    },
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: TEST_VOTER.to_string(),
+                    amount: Uint128::from(11u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+        ],
     );
 
     let state: State = load_state(&mut deps.storage).unwrap();
@@ -1876,19 +1895,32 @@ fn happy_days_withdraw_voting_tokens_all() {
     };
 
     let execute_res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
-    let msg = execute_res.messages.get(0).expect("no message");
+    let msgs = execute_res.messages;
 
     assert_eq!(
-        msg,
-        &SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: VOTING_TOKEN.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: TEST_VOTER.to_string(),
-                amount: Uint128::from(22u128),
-            })
-            .unwrap(),
-            funds: vec![],
-        }))
+        msgs,
+        vec![
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: PSI_NEXPRISM_STAKING.to_string(),
+                msg: to_binary(&crate::nexus_prism::ExecuteMsg::StakeOperator {
+                    msg: crate::nexus_prism::StakeOperatorMsg::DecreaseBalance {
+                        staker: TEST_VOTER.to_string(),
+                        amount: Uint128::from(22u128),
+                    },
+                })
+                .unwrap(),
+                funds: vec![],
+            }),
+            SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: VOTING_TOKEN.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: TEST_VOTER.to_string(),
+                    amount: Uint128::from(22u128),
+                })
+                .unwrap(),
+                funds: vec![],
+            }))
+        ]
     );
 
     let state: State = load_state(deps.as_ref().storage).unwrap();
@@ -2220,6 +2252,23 @@ fn happy_days_stake_voting_tokens() {
     let env = mock_env();
     let info = mock_info(VOTING_TOKEN, &[]);
     let execute_res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
+
+    let msg = execute_res.messages[0].clone();
+
+    assert_eq!(
+        msg,
+        SubMsg::new(WasmMsg::Execute {
+            contract_addr: PSI_NEXPRISM_STAKING.to_string(),
+            msg: to_binary(&crate::nexus_prism::ExecuteMsg::StakeOperator {
+                msg: crate::nexus_prism::StakeOperatorMsg::IncreaseBalance {
+                    staker: TEST_VOTER.to_string(),
+                    amount: Uint128::from(11u128),
+                },
+            })
+            .unwrap(),
+            funds: vec![],
+        }),
+    );
     assert_stake_tokens_result(11, 0, 11, 0, execute_res, &deps);
 }
 
@@ -2456,6 +2505,7 @@ fn update_config() {
             timelock_period: None,
             proposal_deposit: None,
             snapshot_period: None,
+            psi_nexprism_staking: None,
         },
     };
 
@@ -2484,6 +2534,7 @@ fn update_config() {
             timelock_period: Some(20000u64),
             proposal_deposit: Some(Uint128::new(123u128)),
             snapshot_period: Some(11),
+            psi_nexprism_staking: Some("staking".to_owned()),
         },
     };
 
@@ -2500,6 +2551,7 @@ fn update_config() {
     assert_eq!(20000u64, config.timelock_period);
     assert_eq!(123u128, config.proposal_deposit.u128());
     assert_eq!(11u64, config.snapshot_period);
+    assert_eq!(Some("staking".to_owned()), config.psi_nexprism_staking);
 
     // Unauthorzied err
     let env = mock_env();
@@ -2513,6 +2565,7 @@ fn update_config() {
             timelock_period: None,
             proposal_deposit: None,
             snapshot_period: None,
+            psi_nexprism_staking: None,
         },
     };
 

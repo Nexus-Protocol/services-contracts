@@ -43,6 +43,10 @@ pub fn instantiate(
         timelock_period: msg.timelock_period,
         proposal_deposit: msg.proposal_deposit,
         snapshot_period: msg.snapshot_period,
+        psi_nexprism_staking: msg
+            .psi_nexprism_staking
+            .map(|addr| deps.api.addr_validate(&addr))
+            .transpose()?,
     };
 
     let state = State {
@@ -86,6 +90,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     timelock_period,
                     proposal_deposit,
                     snapshot_period,
+                    psi_nexprism_staking,
                 } => commands::update_config(
                     deps,
                     config,
@@ -96,6 +101,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
                     timelock_period,
                     proposal_deposit,
                     snapshot_period,
+                    psi_nexprism_staking,
                 ),
             }
         }
@@ -205,6 +211,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[entry_point]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+    let mut config = load_config(deps.storage)?;
+    config.psi_nexprism_staking = Some(deps.api.addr_validate(&msg.psi_nexprism_staking)?);
+    store_config(deps.storage, &config)?;
+
     Ok(Response::default())
 }
