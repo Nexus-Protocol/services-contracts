@@ -19,6 +19,7 @@ use crate::{
 };
 use cw20::Cw20ExecuteMsg;
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut,
     mut current_config: Config,
@@ -29,6 +30,7 @@ pub fn update_config(
     timelock_period: Option<u64>,
     proposal_deposit: Option<Uint128>,
     snapshot_period: Option<u64>,
+    psi_nexprism_staking: Option<String>,
 ) -> StdResult<Response> {
     if let Some(ref owner) = owner {
         current_config.owner = deps.api.addr_validate(owner)?;
@@ -56,6 +58,14 @@ pub fn update_config(
 
     if let Some(snapshot_period) = snapshot_period {
         current_config.snapshot_period = snapshot_period;
+    }
+
+    if let Some(psi_nexprism_staking) = psi_nexprism_staking {
+        current_config.psi_nexprism_staking = if !psi_nexprism_staking.is_empty() {
+            Some(deps.api.addr_validate(&psi_nexprism_staking)?)
+        } else {
+            None
+        }
     }
 
     store_config(deps.storage, &current_config)?;
@@ -93,7 +103,22 @@ pub fn stake_voting_tokens(
     store_state(deps.storage, &state)?;
     store_bank(deps.storage, &sender, &token_manager)?;
 
-    Ok(Response::new().add_attributes(vec![
+    let mut resp = Response::new();
+
+    if let Some(ref psi_nexprism_staking) = config.psi_nexprism_staking {
+        resp = resp.add_submessage(SubMsg::new(WasmMsg::Execute {
+            contract_addr: psi_nexprism_staking.to_string(),
+            msg: to_binary(&crate::nexus_prism::ExecuteMsg::StakeOperator {
+                msg: crate::nexus_prism::StakeOperatorMsg::IncreaseBalance {
+                    staker: sender.to_string(),
+                    amount,
+                },
+            })?,
+            funds: vec![],
+        }));
+    }
+
+    Ok(resp.add_attributes(vec![
         ("action", "staking"),
         ("sender", &sender.to_string()),
         ("share", &share.to_string()),
@@ -288,7 +313,7 @@ pub fn end_poll(deps: DepsMut, env: Env, poll_id: u64) -> StdResult<Response> {
         .add_attributes(vec![
             ("action", "end_poll"),
             ("poll_id", &poll_id.to_string()),
-            ("rejected_reason", &rejected_reason.to_string()),
+            ("rejected_reason", rejected_reason),
             ("passed", &passed.to_string()),
         ]))
 }
@@ -557,7 +582,22 @@ pub fn withdraw_voting_tokens(
             state.total_share = Uint128::from(total_share - withdraw_share);
             store_state(deps.storage, &state)?;
 
-            Ok(Response::new()
+            let mut resp = Response::new();
+
+            if let Some(psi_nexprism_staking) = config.psi_nexprism_staking {
+                resp = resp.add_submessage(SubMsg::new(WasmMsg::Execute {
+                    contract_addr: psi_nexprism_staking.to_string(),
+                    msg: to_binary(&crate::nexus_prism::ExecuteMsg::StakeOperator {
+                        msg: crate::nexus_prism::StakeOperatorMsg::DecreaseBalance {
+                            staker: user_address.to_string(),
+                            amount: Uint128::new(withdraw_amount),
+                        },
+                    })?,
+                    funds: vec![],
+                }));
+            }
+
+            Ok(resp
                 .add_message(WasmMsg::Execute {
                     contract_addr: config.psi_token.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Transfer {
@@ -590,7 +630,7 @@ fn compute_locked_balance(
 
         if poll.status != PollStatus::InProgress {
             // remove voter info from the poll
-            remove_poll_voter(storage, *poll_id, &voter);
+            remove_poll_voter(storage, *poll_id, voter);
         }
 
         poll.status == PollStatus::InProgress

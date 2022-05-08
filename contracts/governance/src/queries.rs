@@ -26,6 +26,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         timelock_period: config.timelock_period,
         proposal_deposit: config.proposal_deposit,
         snapshot_period: config.snapshot_period,
+        psi_nexprism_staking: config.psi_nexprism_staking.map(|addr| addr.to_string()),
     })
 }
 
