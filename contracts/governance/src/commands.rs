@@ -582,7 +582,18 @@ pub fn withdraw_voting_tokens(
             state.total_share = Uint128::from(total_share - withdraw_share);
             store_state(deps.storage, &state)?;
 
-            let mut resp = Response::new();
+            let mut resp = Response::new()
+                .add_message(WasmMsg::Execute {
+                    contract_addr: config.psi_token.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                        recipient: user_address.to_string(),
+                        amount: Uint128::new(withdraw_amount),
+                    })?,
+                    funds: vec![],
+                })
+                .add_attribute("action", "withdraw")
+                .add_attribute("recipient", &user_address.to_string())
+                .add_attribute("amount", &withdraw_amount.to_string());
 
             if let Some(psi_nexprism_staking) = config.psi_nexprism_staking {
                 resp = resp.add_submessage(SubMsg::new(WasmMsg::Execute {
@@ -597,20 +608,7 @@ pub fn withdraw_voting_tokens(
                 }));
             }
 
-            Ok(resp
-                .add_message(WasmMsg::Execute {
-                    contract_addr: config.psi_token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                        recipient: user_address.to_string(),
-                        amount: Uint128::new(withdraw_amount),
-                    })?,
-                    funds: vec![],
-                })
-                .add_attributes(vec![
-                    ("action", "withdraw"),
-                    ("recipient", &user_address.to_string()),
-                    ("amount", &withdraw_amount.to_string()),
-                ]))
+            Ok(resp)
         }
     } else {
         Err(StdError::generic_err("Nothing staked"))
