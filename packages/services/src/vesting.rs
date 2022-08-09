@@ -23,6 +23,9 @@ pub enum ExecuteMsg {
         vesting_accounts: Vec<VestingAccount>,
     },
     Claim {},
+    ClaimFor {
+        address: String,
+    },
 }
 
 /// CONTRACT: end_time > start_time

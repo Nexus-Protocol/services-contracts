@@ -38,7 +38,8 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg.clone() {
-        ExecuteMsg::Claim {} => claim(deps, env, info),
+        ExecuteMsg::Claim {} => claim(deps, env, info.sender.to_string()),
+        ExecuteMsg::ClaimFor { address } => claim(deps, env, address),
         ExecuteMsg::UpdateConfig {
             owner,
             psi_token,
@@ -126,10 +127,9 @@ pub fn register_vesting_accounts(
     Ok(Response::new().add_attribute("action", "register_vesting_accounts"))
 }
 
-pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
+pub fn claim(deps: DepsMut, env: Env, address: String) -> StdResult<Response> {
     let current_time = get_time(&env.block);
-    let address = info.sender;
-    let address_raw = deps.api.addr_canonicalize(&address.to_string())?;
+    let address_raw = deps.api.addr_canonicalize(&address)?;
 
     let config: Config = read_config(deps.storage)?;
     let mut vesting_info: VestingInfo = read_vesting_info(deps.storage, &address_raw)?;
@@ -142,7 +142,7 @@ pub fn claim(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> 
             contract_addr: deps.api.addr_humanize(&config.psi_token)?.to_string(),
             funds: vec![],
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: address.to_string(),
+                recipient: address.clone(),
                 amount: claim_amount,
             })?,
         }))]
